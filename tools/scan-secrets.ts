@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
- * scan-secrets.mjs — страж коммитов.
+ * scan-secrets.ts — страж коммитов.
  *
- *   node tools/scan-secrets.mjs            проверить проиндексированное (режим хука)
- *   node tools/scan-secrets.mjs --all      проверить все отслеживаемые файлы
- *   node tools/scan-secrets.mjs --install  включить хук (core.hooksPath)
+ *   bun run scan            проверить проиндексированное (режим хука)
+ *   bun run scan:all        проверить все отслеживаемые файлы
+ *   bun run hook:install    включить хук (core.hooksPath)
  *
  * Проверяется СОДЕРЖИМОЕ ИНДЕКСА (`git show :файл`), а не рабочая копия:
  * коммитится именно оно, и `git add -p` может отправить туда не то, что видно в редакторе.
@@ -12,26 +12,25 @@
  * Здесь намеренно нет проектных паттернов вроде домена букмекера: файл публичный,
  * и вписать в него то, что он охраняет, значит это опубликовать. Такие правила
  * лежат в `.scanlocal` — он в .gitignore.
- *
- * Zero dependencies.
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const BLOCK = 'block';
-const WARN = 'warn';
+type Level = 'block' | 'warn';
+interface Rule { id: string; level: Level; msg: string; re: RegExp; minCount?: number }
+interface Finding { path: string; line: number; level: Level; msg: string; sample: string; id?: string }
+
+const BLOCK: Level = 'block';
+const WARN: Level = 'warn';
 
 // ── Правила ───────────────────────────────────────────────────────────────────
 // minCount — сколько совпадений нужно, чтобы правило сработало. Нужен там, где
 // одиночное вхождение это нормальный пример в документации, а десяток — уже дамп.
-const RULES = [
-  // Ключи и токены
-  { id: 'private-key', level: BLOCK, msg: 'Приватный ключ',
-    re: /-----BEGIN(?: [A-Z]+)* PRIVATE KEY-----/ },
-  { id: 'jwt', level: BLOCK, msg: 'JWT-токен',
-    re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/ },
+const RULES: Rule[] = [
+  { id: 'private-key', level: BLOCK, msg: 'Приватный ключ', re: /-----BEGIN(?: [A-Z]+)* PRIVATE KEY-----/ },
+  { id: 'jwt', level: BLOCK, msg: 'JWT-токен', re: /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/ },
   { id: 'aws-key', level: BLOCK, msg: 'AWS access key', re: /\b(?:AKIA|ASIA)[0-9A-Z]{16}\b/ },
   { id: 'github-token', level: BLOCK, msg: 'GitHub token', re: /\bgh[pousr]_[A-Za-z0-9]{36,}\b/ },
   { id: 'slack-token', level: BLOCK, msg: 'Slack token', re: /\bxox[baprs]-[A-Za-z0-9-]{10,}/ },
@@ -41,28 +40,22 @@ const RULES = [
   { id: 'openai-key', level: BLOCK, msg: 'Ключ OpenAI', re: /\bsk-proj-[A-Za-z0-9_-]{16,}/ },
   { id: 'telegram-token', level: BLOCK, msg: 'Токен Telegram-бота', re: /\b\d{8,10}:AA[A-Za-z0-9_-]{32,}\b/ },
 
-  // Присвоения секретов в коде и конфигах
   { id: 'secret-assign', level: BLOCK, msg: 'Секрет в присвоении',
     re: /\b(?:api[_-]?key|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd)\b\s*[:=]\s*["'][^"'\s]{8,}["']/i },
   { id: 'conn-string', level: BLOCK, msg: 'Строка подключения с паролем',
     re: /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqp|ftp):\/\/[^\s:/@]+:[^\s@]{3,}@/i },
 
-  // Сессии и куки
   { id: 'session-cookie', level: BLOCK, msg: 'Сессионная кука',
     re: /\b(?:PHPSESSID|JSESSIONID|connect\.sid|remember_token|_session_id)\s*[=:]\s*\S{8,}/i },
   { id: 'set-cookie', level: BLOCK, msg: 'Заголовок Set-Cookie', re: /^\s*Set-Cookie:\s*\S/im },
 
   // Чужие персональные данные с чужих сайтов
-  { id: 'site-chat-pii', level: BLOCK, minCount: 2, msg: 'Никнеймы из чужого чата',
-    re: /class=\\?"nick\\?"/ },
-  { id: 'profile-ids', level: BLOCK, minCount: 2, msg: 'Ссылки на чужие профили',
-    re: /\/profile\/\d{3,}/ },
+  { id: 'site-chat-pii', level: BLOCK, minCount: 2, msg: 'Никнеймы из чужого чата', re: /class=\\?"nick\\?"/ },
+  { id: 'profile-ids', level: BLOCK, minCount: 2, msg: 'Ссылки на чужие профили', re: /\/profile\/\d{3,}/ },
 
   // Сырые выгрузки чужих сайтов
-  { id: 'raw-odds-dump', level: BLOCK, minCount: 5, msg: 'Сырой HTML-дамп линии букмекера',
-    re: /class=\\?"koef\\?"/ },
-  { id: 'logged-in-markup', level: WARN, minCount: 2, msg: 'Разметка залогиненной сессии',
-    re: /\b(?:logout|signout|sign-out)\b/i },
+  { id: 'raw-odds-dump', level: BLOCK, minCount: 5, msg: 'Сырой HTML-дамп линии букмекера', re: /class=\\?"koef\\?"/ },
+  { id: 'logged-in-markup', level: WARN, minCount: 2, msg: 'Разметка залогиненной сессии', re: /\b(?:logout|signout|sign-out)\b/i },
 
   // Утечки локального окружения
   { id: 'windows-userpath', level: BLOCK, msg: 'Windows-путь с именем пользователя',
@@ -73,18 +66,17 @@ const RULES = [
 ];
 
 const MAX_BYTES = 512 * 1024;
-const SELF = ['tools/scan-secrets.mjs', '.scanignore', '.scanlocal', '.githooks/pre-commit'];
+const SELF = ['tools/scan-secrets.ts', '.scanignore', '.scanlocal', '.githooks/pre-commit'];
 
 // ── Ignore-механика ───────────────────────────────────────────────────────────
-/** .scanignore: glob-строки как в .gitignore. Пустые строки и # — комментарии. */
-function loadIgnore() {
+function loadIgnore(): string[] {
   if (!existsSync('.scanignore')) return [];
   return readFileSync('.scanignore', 'utf8').split(/\r?\n/)
     .map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
 }
 
-/** Простой glob: * внутри сегмента, ** через сегменты, // в конце — вся папка. */
-function globToRe(g) {
+/** Простой glob: * внутри сегмента, ** через сегменты, / в конце — вся папка. */
+function globToRe(g: string): RegExp {
   const body = g.replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '\u0000')
     .replace(/\*/g, '[^/]*')
@@ -93,95 +85,97 @@ function globToRe(g) {
 }
 
 /** .scanlocal: по одному регулярному выражению на строку. Файл не версионируется. */
-function loadLocalRules() {
+function loadLocalRules(): Rule[] {
   if (!existsSync('.scanlocal')) return [];
   return readFileSync('.scanlocal', 'utf8').split(/\r?\n/)
     .map((l) => l.trim()).filter((l) => l && !l.startsWith('#'))
-    .map((src, i) => {
+    .map((src, i): Rule | null => {
       const [pattern, label] = src.split(/\s+#\s+/);
       try {
-        return { id: `local-${i + 1}`, level: BLOCK, re: new RegExp(pattern), msg: label || 'Локальное правило' };
+        return { id: `local-${i + 1}`, level: BLOCK, re: new RegExp(pattern!), msg: label ?? 'Локальное правило' };
       } catch {
         console.error(`  ! .scanlocal: не удалось разобрать регулярку — ${src}`);
         return null;
       }
-    }).filter(Boolean);
+    })
+    .filter((r): r is Rule => r !== null);
 }
 
 // ── Git ───────────────────────────────────────────────────────────────────────
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 
-function stagedFiles() {
-  return git('diff', '--cached', '--name-only', '--diff-filter=ACMR').split('\n').map((s) => s.trim()).filter(Boolean);
-}
-function stagedContent(path) {
+function stagedContent(path: string): Buffer | null {
   try { return execFileSync('git', ['show', `:${path}`], { maxBuffer: 64 * 1024 * 1024 }); }
   catch { return null; }
 }
 
 // ── Проверка ──────────────────────────────────────────────────────────────────
-const redact = (s) => {
+const redact = (s: string): string => {
   const t = s.length > 90 ? `${s.slice(0, 60)}…` : s;
   return t.length > 16 ? `${t.slice(0, 8)}${'•'.repeat(6)}${t.slice(-6)}` : t;
 };
 
-function scanFile(path, buf, rules) {
-  const findings = [];
+function scanFile(path: string, buf: Buffer, rules: Rule[]): Finding[] {
+  const findings: Finding[] = [];
   if (buf.length > MAX_BYTES) {
-    findings.push({ path, line: 0, level: WARN, msg: `Крупный файл, ${(buf.length / 1024 | 0)} КБ — не выгрузка ли это`, sample: '' });
+    findings.push({ path, line: 0, level: WARN, sample: '',
+      msg: `Крупный файл, ${Math.round(buf.length / 1024)} КБ — не выгрузка ли это` });
   }
-  if (buf.subarray(0, 8000).includes(0)) return findings; // бинарник — содержимое не читаем
+  if (buf.subarray(0, 8000).includes(0)) return findings; // бинарник
 
   const text = buf.toString('utf8');
-  if (/(^|\n)[^\n]*scan:ignore-file/.test(text.slice(0, 2000))) return [];
+  if (/scan:ignore-file/.test(text.slice(0, 2000))) return [];
 
-  const lines = text.split(/\r?\n/);
+  const rows = text.split(/\r?\n/);
   for (const rule of rules) {
-    const hits = [];
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('scan:ignore')) continue;
-      const m = rule.re.exec(lines[i]);
+    const hits: { line: number; sample: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      if (row.includes('scan:ignore')) continue;
+      const m = rule.re.exec(row);
       if (m) hits.push({ line: i + 1, sample: redact(m[0]) });
     }
-    if (!hits.length || hits.length < (rule.minCount ?? 1)) continue;
+    if (hits.length < (rule.minCount ?? 1)) continue;
     for (const h of hits.slice(0, 3)) {
       findings.push({ path, line: h.line, level: rule.level, msg: rule.msg, sample: h.sample, id: rule.id });
     }
     if (hits.length > 3) {
-      findings.push({ path, line: hits[3].line, level: rule.level, msg: `${rule.msg} — ещё ${hits.length - 3} совпадений`, sample: '', id: rule.id });
+      findings.push({ path, line: hits[3]!.line, level: rule.level, sample: '', id: rule.id,
+        msg: `${rule.msg} — ещё ${hits.length - 3} совпадений` });
     }
   }
   return findings;
 }
 
 // ── Установка хука ────────────────────────────────────────────────────────────
-function install() {
+function install(): void {
   mkdirSync('.githooks', { recursive: true });
   writeFileSync(join('.githooks', 'pre-commit'),
-    '#!/bin/sh\n# Страж коммитов. Обойти: git commit --no-verify\nexec node tools/scan-secrets.mjs\n',
+    '#!/bin/sh\n# Страж коммитов. Обойти: git commit --no-verify\nexec bun run tools/scan-secrets.ts\n',
     { encoding: 'utf8', mode: 0o755 });
   git('config', 'core.hooksPath', '.githooks');
   console.log('✅ Хук установлен: core.hooksPath = .githooks');
-  console.log('   Проверить вручную: node tools/scan-secrets.mjs --all');
+  console.log('   Проверить вручную: bun run scan:all');
 }
 
 // ── main ──────────────────────────────────────────────────────────────────────
-const argv = process.argv.slice(2);
+const argv = Bun.argv.slice(2);
 if (argv.includes('--install')) { install(); process.exit(0); }
 
 const all = argv.includes('--all');
 const ignoreRe = loadIgnore().map(globToRe);
 const rules = [...RULES, ...loadLocalRules()];
 
-const files = (all ? git('ls-files').split('\n').map((s) => s.trim()).filter(Boolean) : stagedFiles())
+const files = (all ? lines(git('ls-files')) : lines(git('diff', '--cached', '--name-only', '--diff-filter=ACMR')))
   .filter((f) => !SELF.includes(f))
   .filter((f) => !ignoreRe.some((re) => re.test(f)));
 
 if (!files.length) process.exit(0);
 
-const findings = [];
+const findings: Finding[] = [];
 for (const f of files) {
-  const buf = all ? (existsSync(f) ? readFileSync(f) : null) : stagedContent(f);
+  const buf = all ? (existsSync(f) && statSync(f).isFile() ? readFileSync(f) : null) : stagedContent(f);
   if (buf) findings.push(...scanFile(f, buf, rules));
 }
 
@@ -193,7 +187,7 @@ if (!findings.length) {
   process.exit(0);
 }
 
-const show = (list, icon) => {
+const show = (list: Finding[], icon: string) => {
   for (const f of list) {
     console.error(`  ${icon} ${f.path}:${f.line}`);
     console.error(`     ${f.msg}${f.id ? `  [${f.id}]` : ''}`);
@@ -202,8 +196,17 @@ const show = (list, icon) => {
 };
 
 console.error('');
-if (blocks.length) { console.error(`🚫 Коммит остановлен — блокирующих находок: ${blocks.length}`); console.error(''); show(blocks, '✗'); }
-if (warns.length) { console.error(''); console.error(`⚠️  Предупреждений: ${warns.length} (коммит не блокируют)`); console.error(''); show(warns, '!'); }
+if (blocks.length) {
+  console.error(`🚫 Коммит остановлен — блокирующих находок: ${blocks.length}`);
+  console.error('');
+  show(blocks, '✗');
+}
+if (warns.length) {
+  console.error('');
+  console.error(`⚠️  Предупреждений: ${warns.length} (коммит не блокируют)`);
+  console.error('');
+  show(warns, '!');
+}
 
 if (blocks.length) {
   console.error('');

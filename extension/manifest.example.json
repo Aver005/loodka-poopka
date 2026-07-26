@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "Лудка-Пупка — расчёт линии",
+  "version": "0.1.0",
+  "description": "Считает честные вероятности, маржу книг и порог входа прямо в модалке ставок",
+
+  "permissions": ["storage", "sidePanel"],
+
+  "host_permissions": ["https://ИМЯ-САЙТА.example/*"],
+
+  "background": { "service_worker": "background.js" },
+
+  "action": { "default_title": "Расчёт линии" },
+
+  "side_panel": { "default_path": "panel.html" },
+
+  "content_scripts": [
+    {
+      "matches": ["https://ИМЯ-САЙТА.example/*"],
+      "js": ["content.js"],
+      "css": ["badges.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["panel.html"],
+      "matches": ["https://ИМЯ-САЙТА.example/*"]
+    }
+  ]
+}
+
+

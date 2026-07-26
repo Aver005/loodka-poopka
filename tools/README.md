@@ -1,15 +1,22 @@
 # 🛠️ Инструменты
 
-Два файла, и они работают **в разных местах**. Это главный источник путаницы:
+> 💡 **Есть путь короче.** Всё, что делают первые два скрипта, умеет
+> [расширение](../extension/README.md) — прямо на сайте и без ручных шагов.
+> Эти инструменты остаются для разбора пачкой и для случаев, когда расширение не поставлено.
 
 | Файл | Где запускать | Зачем |
 |---|---|---|
 | [grab-console.js](grab-console.js) | **в консоли браузера** (F12 → Console) | забрать модалки со ставками |
-| [parse-bets.mjs](parse-bets.mjs) | **в терминале через node** | разобрать их в отчёт |
-| [scan-secrets.mjs](scan-secrets.mjs) | сам, как git-хук | не пустить чувствительное в публичный репозиторий |
+| [parse-bets.ts](parse-bets.ts) | `bun run parse` | разобрать их в отчёт |
+| [scan-secrets.ts](scan-secrets.ts) | сам, как git-хук | не пустить чувствительное в публичный репозиторий |
 
-> ⚠️ `parse-bets.mjs` в консоль браузера вставлять нельзя — там ES-модуль с `import`,
-> браузер ответит `Cannot use import statement outside a module`. Это Node-скрипт.
+Вся математика вынесена в [`extension/src/engine.ts`](../extension/src/engine.ts) и общая
+с расширением, поэтому формулы в «подсказке на сайте» и в «отчёте в репозитории»
+не могут разойтись. Скрипты — это только ввод-вывод вокруг неё.
+
+> ⚠️ **Они работают в разных местах.** В консоль браузера идёт только `grab-console.js`.
+> Если вставить туда `parse-bets.ts`, браузер ответит
+> `Cannot use import statement outside a module` — это скрипт для терминала.
 
 ---
 
@@ -67,14 +74,14 @@ LP.save()
 ### 4. Разобрать
 
 ```bash
-node tools/parse-bets.mjs
+bun run parse
 ```
 
 Читает всё из `input/html/` (и `.json`, и `.html`), пишет в `input/parsed/`:
 - **`report.md`** — читаемый отчёт, его я и смотрю
 - `report.json` — то же машинно
 
-Явные пути тоже работают: `node tools/parse-bets.mjs .dev/ --out input/parsed`
+Явные пути тоже работают: `bun run parse .dev/ --out input/parsed`
 
 ---
 
@@ -128,7 +135,7 @@ node tools/parse-bets.mjs
 ### Установка
 
 ```bash
-node tools/scan-secrets.mjs --install
+bun run hook:install
 ```
 
 Прописывает `core.hooksPath = .githooks`. Хук **версионируется** — в отличие от
@@ -137,8 +144,8 @@ node tools/scan-secrets.mjs --install
 ### Использование
 
 ```bash
-node tools/scan-secrets.mjs          # что уйдёт в коммит (то же, что делает хук)
-node tools/scan-secrets.mjs --all    # аудит всех отслеживаемых файлов
+bun run scan          # что уйдёт в коммит (то же, что делает хук)
+bun run scan:all    # аудит всех отслеживаемых файлов
 ```
 
 Проверяется **содержимое индекса** (`git show :файл`), а не рабочая копия. Это принципиально:
@@ -232,3 +239,4 @@ git commit --no-verify
 порог входа из [README.md](../README.md). Смотрю на неё и сразу вижу, дотягивает ли моя оценка.
 
 **Тиры рынков** 🅰️/🅱️/🅾️ — из [MARKETS.md](../MARKETS.md), чтобы ловушки не мозолили глаза.
+

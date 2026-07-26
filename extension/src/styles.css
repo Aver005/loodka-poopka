@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/*
+  Тёмная тема под сайт букмекера. Переменные названы как у shadcn, чтобы его
+  компоненты в боковой панели заработали без правок.
+
+  Внимание: в оверлее этот файл попадает ВНУТРЬ shadow root, поэтому preflight
+  Tailwind не выплёскивается на страницу букмекера и не ломает её вёрстку.
+*/
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+
+  /* Семантика проекта: тиры рынков и светофор вердикта */
+  --color-tier-a: var(--tier-a);
+  --color-tier-b: var(--tier-b);
+  --color-tier-c: var(--tier-c);
+  --color-good: var(--good);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+
+  --radius-lg: 0.5rem;
+  --radius-md: 0.375rem;
+  --radius-sm: 0.25rem;
+}
+
+/*
+  ⚠️ `:host` здесь обязателен. Внутри Shadow DOM селектор `:root` не совпадает
+  ни с чем — он матчит только корень документа. Без `:host` переменные остаются
+  неопределёнными, и оверлей рендерится чёрным текстом без фона и рамок.
+  Сам Tailwind свою тему кладёт в `:root, :host` ровно по этой причине.
+*/
+:root,
+:host {
+  --background: oklch(0.17 0.012 250);
+  --foreground: oklch(0.93 0.008 250);
+  --card: oklch(0.21 0.014 250);
+  --card-foreground: oklch(0.93 0.008 250);
+  --muted: oklch(0.26 0.014 250);
+  --muted-foreground: oklch(0.66 0.014 250);
+  --border: oklch(0.30 0.016 250);
+  --input: oklch(0.26 0.014 250);
+  --ring: oklch(0.62 0.14 155);
+  --primary: oklch(0.68 0.16 155);
+  --primary-foreground: oklch(0.16 0.02 155);
+  --accent: oklch(0.28 0.02 250);
+  --accent-foreground: oklch(0.93 0.008 250);
+  --destructive: oklch(0.60 0.20 25);
+
+  --tier-a: oklch(0.72 0.15 155);
+  --tier-b: oklch(0.75 0.13 85);
+  --tier-c: oklch(0.58 0.02 250);
+  --good: oklch(0.72 0.15 155);
+  --warn: oklch(0.78 0.14 75);
+  --bad: oklch(0.65 0.19 25);
+}
+
+/* ── Бейджи у коэффициентов ────────────────────────────────────────────────
+   Живут в СВЕТЛОМ DOM страницы (внутрь чужой вёрстки shadow root не вставить),
+   поэтому здесь только инлайновые самодостаточные правила с префиксом lp-,
+   максимально нейтральные к чужим стилям. */
+.lp-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font: 500 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.lp-badge--a { color: #7ee2b0; background: rgba(126, 226, 176, 0.10); border-color: rgba(126, 226, 176, 0.28); }
+.lp-badge--b { color: #e7cf87; background: rgba(231, 207, 135, 0.10); border-color: rgba(231, 207, 135, 0.26); }
+.lp-badge--c { color: #8a8f9c; background: rgba(138, 143, 156, 0.08); border-color: rgba(138, 143, 156, 0.20); }
+.lp-badge--trap { text-decoration: line-through; opacity: 0.55; }
