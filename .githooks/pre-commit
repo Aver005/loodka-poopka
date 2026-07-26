@@ -1,0 +1,3 @@
+#!/bin/sh
+# Страж коммитов. Обойти: git commit --no-verify
+exec node tools/scan-secrets.mjs
