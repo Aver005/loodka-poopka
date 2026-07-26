@@ -11,7 +11,7 @@
  *
  * Здесь намеренно нет проектных паттернов вроде домена букмекера: файл публичный,
  * и вписать в него то, что он охраняет, значит это опубликовать. Такие правила
- * лежат в `.scanlocal` — он в .gitignore.
+ * лежат в `tools/.scanlocal` — он в .gitignore.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -145,13 +145,25 @@ const RULES: Rule[] = [
 ];
 
 const MAX_BYTES = 512 * 1024;
-const SELF = ['tools/scan-secrets.ts', '.scanignore', '.scanlocal', '.githooks/pre-commit'];
+
+// Конфиги сканера лежат рядом с ним, а не в корне: это его настройки, а не репозитория.
+// Ищем их от файла скрипта, поэтому запуск из любой папки даёт один и тот же результат.
+const IGNORE_FILE = join(import.meta.dir, '.scanignore');
+const LOCAL_FILE = join(import.meta.dir, '.scanlocal');
+
+// А здесь пути от корня репозитория: их сравнивают с выводом git, а он всегда такой.
+const SELF = [
+  'tools/scan-secrets.ts',
+  'tools/.scanignore',
+  'tools/.scanlocal',
+  '.githooks/pre-commit',
+];
 
 // ── Ignore-механика ───────────────────────────────────────────────────────────
 function loadIgnore(): string[]
 {
-  if (!existsSync('.scanignore')) return [];
-  return readFileSync('.scanignore', 'utf8')
+  if (!existsSync(IGNORE_FILE)) return [];
+  return readFileSync(IGNORE_FILE, 'utf8')
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'));
@@ -168,11 +180,11 @@ function globToRe(g: string): RegExp
   return new RegExp(`^${body}${g.endsWith('/') ? '.*' : ''}$`);
 }
 
-/** .scanlocal: по одному регулярному выражению на строку. Файл не версионируется. */
+/** tools/.scanlocal: по одному регулярному выражению на строку. Файл не версионируется. */
 function loadLocalRules(): Rule[]
 {
-  if (!existsSync('.scanlocal')) return [];
-  return readFileSync('.scanlocal', 'utf8')
+  if (!existsSync(LOCAL_FILE)) return [];
+  return readFileSync(LOCAL_FILE, 'utf8')
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'))
@@ -190,7 +202,7 @@ function loadLocalRules(): Rule[]
       }
       catch
       {
-        console.error(`  ! .scanlocal: не удалось разобрать регулярку — ${src}`);
+        console.error(`  ! tools/.scanlocal: не удалось разобрать регулярку — ${src}`);
         return null;
       }
     })
@@ -368,7 +380,7 @@ if (blocks.length)
   console.error('');
   console.error('  Что делать:');
   console.error('    • убрать данные из файла — самый правильный путь');
-  console.error('    • если файл безопасен, добавить путь в .scanignore');
+  console.error('    • если файл безопасен, добавить путь в tools/.scanignore');
   console.error('    • если безопасна одна строка, дописать в неё комментарий  scan:ignore');
   console.error('    • весь файл целиком —  scan:ignore-file  в первых строках');
   console.error('    • git commit --no-verify — крайний случай, осознанно');
