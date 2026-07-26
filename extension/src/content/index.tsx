@@ -1,6 +1,7 @@
 import { createRoot, type Root } from 'react-dom/client';
 import type { Match } from '../engine';
 import { OVERLAY_CSS } from '../generated/overlay-css';
+import { mergeSides } from '../engine';
 import {
   captureMatch, findModal, matchFingerprint, observeDom, signature,
 } from '../lib/modal';
@@ -31,23 +32,75 @@ let capturing = false;
 /** Правило 2: обрабатываем только отпечаток, который ещё не обрабатывали. */
 let handledSignature = '';
 
-/** Правило 3: вторую сторону снимаем не чаще одного раза на матч. */
-const doneBothSides = new Set<string>();
+/**
+ * Правило 3: вторая сторона снимается ТОЛЬКО вручную — это переключение вкладки,
+ * то есть запрос к сайту. Но однажды снятая, она запоминается и подмешивается
+ * во все последующие обновления: иначе «Обновить» молча откатывал бы разбор
+ * к одной стороне и терял то, что пользователь только что собрал.
+ */
+const secondSides = new Map<string, { match: Match; at: number }>();
 
 let match: Match | null = null;
 let busy = false;
 
+// ── Позиционирование ──────────────────────────────────────────────────────────
+const PANEL_WIDTH = 330;
+const GAP = 12;
+
+/**
+ * Панель крепится сбоку от модалки и живёт в `position: fixed`.
+ *
+ * Раньше блок вставлялся внутрь модалки сверху — и выталкивал её содержимое вниз,
+ * из-за чего модалка прыгала при каждом пересчёте. Фиксированное позиционирование
+ * выводит панель из потока: на вёрстку сайта она больше не влияет вообще.
+ */
+function positionHost(modal: HTMLElement, el: HTMLElement): void {
+  const r = modal.getBoundingClientRect();
+  const spaceRight = window.innerWidth - r.right;
+  // Справа, если влезает; иначе слева; если и там тесно — прижимаем к краю окна.
+  const left = spaceRight >= PANEL_WIDTH + GAP
+    ? r.right + GAP
+    : r.left - PANEL_WIDTH - GAP >= GAP
+      ? r.left - PANEL_WIDTH - GAP
+      : Math.max(GAP, window.innerWidth - PANEL_WIDTH - GAP);
+
+  el.style.left = `${Math.round(left)}px`;
+  el.style.top = `${Math.round(Math.max(GAP, Math.min(r.top, window.innerHeight - 120)))}px`;
+  el.style.maxHeight = `${Math.round(window.innerHeight - 2 * GAP)}px`;
+}
+
+let followTimer: ReturnType<typeof setInterval> | null = null;
+
+function startFollowing(): void {
+  stopFollowing();
+  const tick = () => {
+    const m = findModal();
+    if (m && host) positionHost(m, host);
+  };
+  // Сайт двигает модалку инлайновыми стилями, ловить это событиями ненадёжно.
+  // Один getBoundingClientRect раз в 300 мс дешевле, чем попытки угадать все триггеры.
+  followTimer = setInterval(tick, 300);
+  addEventListener('scroll', tick, { passive: true, capture: true });
+  addEventListener('resize', tick, { passive: true });
+}
+
+function stopFollowing(): void {
+  if (followTimer) { clearInterval(followTimer); followTimer = null; }
+}
+
 // ── Монтирование ──────────────────────────────────────────────────────────────
 function ensureHost(modal: HTMLElement): boolean {
-  if (host?.isConnected && modal.contains(host)) return true;
+  if (host?.isConnected) { positionHost(modal, host); return true; }
 
   host?.remove();
   root = null;
 
   host = document.createElement('div');
   host.id = HOST_ID;
-  // Порядок важен: `all:initial` сбрасывает и display, поэтому идёт первым.
-  host.style.cssText = 'all:initial;display:block;margin:8px 0;';
+  // Порядок важен: `all:initial` сбрасывает в том числе position и display.
+  host.style.cssText =
+    'all:initial;position:fixed;z-index:2147483000;display:block;' +
+    `width:${PANEL_WIDTH}px;pointer-events:auto;`;
 
   const shadow = host.attachShadow({ mode: 'open' });
 
@@ -61,12 +114,17 @@ function ensureHost(modal: HTMLElement): boolean {
   const mount = document.createElement('div');
   shadow.append(mount);
 
-  modal.prepend(host);
+  // В body, а не внутрь модалки: так вставка не влияет на её вёрстку.
+  document.body.append(host);
+  positionHost(modal, host);
+  startFollowing();
+
   root = createRoot(mount);
   return true;
 }
 
 function unmount(): void {
+  stopFollowing();
   root?.unmount();
   root = null;
   host?.remove();
@@ -79,12 +137,12 @@ function unmount(): void {
 function render(): void {
   if (!root || !match) return;
   const { settings } = useStore.getState();
-  const fp = matchFingerprint(match);
+  const stored = secondSides.get(matchFingerprint(match));
   root.render(
     <Overlay
       match={match}
       busy={busy}
-      bothSidesAvailable={!doneBothSides.has(fp)}
+      secondSideAgeMs={stored ? Date.now() - stored.at : null}
       onRefresh={() => void capture(false)}
       onBothSides={() => void capture(true)}
       unit={settings.unit}
@@ -107,13 +165,25 @@ async function capture(bothSides: boolean): Promise<void> {
   try {
     const fresh = await captureMatch(bothSides);
     if (fresh) {
-      match = fresh;
-      if (bothSides) doneBothSides.add(matchFingerprint(fresh));
-      useStore.getState().setCurrent(fresh);
+      const fp = matchFingerprint(fresh);
+
+      if ((fresh.sides ?? 1) >= 2) {
+        // Свежий полный снимок — запоминаем его как источник второй стороны.
+        secondSides.set(fp, { match: fresh, at: Date.now() });
+        match = fresh;
+      } else {
+        // Обычное обновление одной стороны. Если вторая уже снималась —
+        // подмешиваем её. Свежие кэфы выигрывают: mergeSides не перетирает
+        // офферы, уже присутствующие в первом аргументе.
+        const stored = secondSides.get(fp);
+        match = stored ? mergeSides(fresh, stored.match) : fresh;
+      }
+
+      useStore.getState().setCurrent(match);
 
       const m = findModal();
       if (m && useStore.getState().settings.showBadges) {
-        paintBadges(m, fresh, useStore.getState().settings.edgeFloor);
+        paintBadges(m, match, useStore.getState().settings.edgeFloor);
       } else {
         clearBadges();
       }

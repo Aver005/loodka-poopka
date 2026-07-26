@@ -217,6 +217,36 @@ describe('расчёт ставки', () => {
   });
 });
 
+describe('склейка сторон', () => {
+  test('свежие кэфы побеждают запомненные, недостающие — дополняются', async () => {
+    const fresh = await fx('bo3-two-fora-books.html');          // вкладка NiP
+    const stored = await fx('bo3-two-fora-books-side-b.html');  // вкладка Magic, снята раньше
+
+    const merged = mergeSides(fresh, stored);
+
+    // Оффер, который есть в обеих сторонах, берётся из свежей.
+    const series = merged.offers.filter((o) => o.market === 'series');
+    expect(series.find((o) => o.team === '2')?.odds).toBe(1.69);  // из fresh
+    expect(series.find((o) => o.team === '1')?.odds).toBe(2.028); // дополнено из stored
+
+    // Ничего не потеряно и не задвоено.
+    expect(merged.offers.length).toBeGreaterThan(fresh.offers.length);
+    expect(new Set(merged.offers.map((o) => o.type)).size).toBe(merged.offers.length);
+    expect(merged.sides).toBe(2);
+  });
+
+  test('после склейки строится полная сетка исходов', async () => {
+    const merged = mergeSides(
+      await fx('bo3-two-fora-books.html'),
+      await fx('bo3-two-fora-books-side-b.html'),
+    );
+    const s = seriesShape(merged)!;
+    // Именно этого не хватало, когда «Обновить» откатывал разбор к одной стороне.
+    expect(s.solidHandicaps).toBe(true);
+    expect(s.bookCount).toBe(3);
+  });
+});
+
 describe('имена команд', () => {
   test('берутся из разметки, а при её отсутствии из подсказки', async () => {
     const m = await fx('bo3-two-fora-books.html');

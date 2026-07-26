@@ -102,11 +102,26 @@ async function clickTab(tab: HTMLElement, root: Element | null): Promise<boolean
  * разгрома соперника выводится из «+1.5», а там своя маржа, и вычитанием она
  * не убирается. Разница на реальных данных — 18.9% против 25.2%.
  */
+/**
+ * Разметка модалки БЕЗ наших собственных вставок.
+ *
+ * ⚠️ Без этой очистки расширение отравляет собственный вход. Бейджи вставляются
+ * рядом с коэффициентами, и при следующем чтении `outerHTML` они попадают в разбор.
+ * Парсер привязывает ставку к ближайшему свободному `.koef` по расстоянию в тексте,
+ * а лишние узлы это расстояние меняют — привязка съезжает на одну позицию, и кэф
+ * овертайма оказывается в книге «чёт/нечёт» с отрицательной маржой.
+ */
+function cleanHtml(root: HTMLElement): string {
+  const clone = root.cloneNode(true) as HTMLElement;
+  for (const el of clone.querySelectorAll('.lp-badge, #lp-overlay-host')) el.remove();
+  return clone.outerHTML;
+}
+
 export async function captureMatch(bothSides: boolean): Promise<Match | null> {
   const root = findModal();
   if (!root) return null;
 
-  const first = parseOne(root.outerHTML, location.href);
+  const first = parseOne(cleanHtml(root), location.href);
   if (!bothSides) return first;
 
   const tabs = findTabs(root);
@@ -117,7 +132,8 @@ export async function captureMatch(bothSides: boolean): Promise<Match | null> {
   if (!other) return first;
 
   if (!(await clickTab(other, root))) return first;
-  const second = parseOne(findModal()?.outerHTML ?? root.outerHTML, location.href);
+  const afterClick = findModal() ?? root;
+  const second = parseOne(cleanHtml(afterClick), location.href);
 
   // Возвращаем вкладку как было — пользователь её не переключал, это сделали мы.
   const back = tabs[activeIdx >= 0 ? activeIdx : 0];

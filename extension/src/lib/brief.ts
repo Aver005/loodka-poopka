@@ -61,9 +61,15 @@ export function buildBrief(match: Match, edgeFloor = 0.03): string {
     L.push('## Маржа по книгам', '');
     L.push('| Рынок | Кэфы | Маржа |', '|---|---|:-:|');
     for (const b of [...books].sort((x, y) => x.margin - y.margin)) {
-      L.push(`| ${b.label} | ${oddsFmt(b.a.odds)} / ${oddsFmt(b.b.odds)} | ${pct(b.margin)} |`);
+      const flag = b.suspicious ? ' 🚨 **разбор сбоил, не доверять**' : '';
+      L.push(`| ${b.label} | ${oddsFmt(b.a.odds)} / ${oddsFmt(b.b.odds)} | ${pct(b.margin)}${flag} |`);
     }
     if (cheapest) L.push('', `Дешевле всего — **${cheapest.label}** (${pct(cheapest.margin)}).`);
+    if (books.some((b) => b.suspicious)) {
+      L.push('');
+      L.push('> 🚨 Строки с пометкой собраны неверно: маржа вне правдоподобного диапазона ' +
+             'означает, что в одну книгу попали кэфы разных рынков. Ставки по ним не рассматривать.');
+    }
     L.push('');
   }
 

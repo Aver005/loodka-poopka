@@ -80,7 +80,20 @@ export interface MarketPair {
   a: Offer & { implied: number; fair: number };
   b: Offer & { implied: number; fair: number };
   margin: number;
+  /** Маржа вне правдоподобного диапазона — почти наверняка книга собрана неверно. */
+  suspicious: boolean;
 }
+
+/**
+ * Границы правдоподобной маржи двусторонней книги.
+ *
+ * Отрицательная маржа означала бы вилку внутри одного букмекера — такого не бывает.
+ * Слишком большая означает, что в пару попали кэфы разных рынков. И то и другое —
+ * признак сбоя разбора, а не находки. Однажды из-за этого «дешевле всего» оказался
+ * рынок с маржой −31.4%, куда затесался кэф овертайма.
+ */
+const MARGIN_MIN = 0.01;
+const MARGIN_MAX = 0.25;
 
 export interface Analysis {
   match: Match;
@@ -433,11 +446,13 @@ export function pairs(m: Match): MarketPair[] {
     const ix = imp(x.odds)!;
     const iy = imp(y.odds)!;
     const s = ix + iy;
+    const margin = s - 1;
     out.push({
       label, market,
       a: { ...x, implied: ix, fair: ix / s },
       b: { ...y, implied: iy, fair: iy / s },
-      margin: s - 1,
+      margin,
+      suspicious: margin < MARGIN_MIN || margin > MARGIN_MAX,
     });
   };
 
@@ -477,7 +492,10 @@ export function pairs(m: Match): MarketPair[] {
 export function analyze(match: Match): Analysis {
   const shape = seriesShape(match);
   const books = pairs(match);
-  const cheapest = books.length ? books.reduce((x, y) => (y.margin < x.margin ? y : x)) : null;
+  // «Дешевле всего» ищем только среди правдоподобных книг: рынок с невозможной
+  // маржой — это сбой разбора, и подавать его как лучшую находку нельзя.
+  const trusted = books.filter((b) => !b.suspicious);
+  const cheapest = trusted.length ? trusted.reduce((x, y) => (y.margin < x.margin ? y : x)) : null;
   const divergence = shape?.p3FromHandicaps != null && shape?.p3FromTotals != null
     ? shape.p3FromTotals - shape.p3FromHandicaps
     : null;
