@@ -3,37 +3,26 @@
   "version": "0.1.0",
   "private": true,
   "description": "Эксперимент по прогнозированию матчей CS2: расширение-подсказчик и инструменты разбора линии",
+  "workspaces": [
+    "extension",
+    "tools"
+  ],
   "type": "module",
   "scripts": {
-    "build": "bun run extension/build.ts",
-    "dev": "bun run extension/build.ts --watch",
+    "build": "bun run --filter @lp/extension build",
+    "dev": "bun run --filter @lp/extension dev",
     "test": "bun test",
+    "typecheck": "bun run --filter @lp/extension typecheck && bun run --filter @lp/tools typecheck",
     "parse": "bun run tools/parse-bets.ts",
     "scan": "bun run tools/scan-secrets.ts",
     "scan:all": "bun run tools/scan-secrets.ts --all",
     "hook:install": "bun run tools/scan-secrets.ts --install",
-    "typecheck": "tsc --noEmit",
     "format": "oxfmt .",
     "format:check": "oxfmt --check ."
-  },
-  "dependencies": {
-    "@base-ui-components/react": "1.0.0-rc.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.469.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.0.0",
-    "zustand": "^5.0.2"
   },
   "devDependencies": {
     "@artemiy/oxfmt-allman": "0.62.0",
     "@types/bun": "latest",
-    "@types/chrome": "^0.1.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "bun-plugin-tailwind": "^0.1.2",
-    "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0"
   }
 }

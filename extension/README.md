@@ -92,6 +92,8 @@ bun run build
 
 ```
 extension/
+├── package.json             пакет @lp/extension: свои зависимости и скрипты
+├── tsconfig.json            jsx, типы chrome, @/* → ./src/*
 ├── manifest.example.json    в репозитории, с плейсхолдером домена
 ├── manifest.json            локальный, в .gitignore
 ├── build.ts                 Bun.build: iife для content, esm для панели
@@ -110,6 +112,10 @@ extension/
 `engine.ts` не знает ни про DOM, ни про файлы — только чистые функции над строкой HTML.
 Расширение отдаёт ему `root.outerHTML`, скрипт — содержимое файла. **Формулы физически
 не могут разойтись** между подсказкой на сайте и отчётом в репозитории.
+
+Наружу движок выставлен через `exports` в package.json, поэтому `tools/` импортирует его
+как `@lp/extension/engine`, а не относительным путём внутрь чужой папки. Всё остальное
+из `src/` за пределами пакета не видно.
 
 ### Почему content script в iife
 

@@ -30,7 +30,7 @@ import {
   type Match,
   type Offer,
   type TeamSlot,
-} from '../extension/src/engine';
+} from '@lp/extension/engine';
 
 // ── Склейка нескольких заходов по одному матчу ────────────────────────────────
 /**

@@ -21,9 +21,9 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./extension/src/*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["extension/**/*.ts", "extension/**/*.tsx", "tools/**/*.ts"],
-  "exclude": ["node_modules", "extension/dist"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "exclude": ["node_modules", "dist"]
 }

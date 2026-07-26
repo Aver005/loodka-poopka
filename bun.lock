@@ -4,6 +4,15 @@
   "workspaces": {
     "": {
       "name": "loodka-poopka",
+      "devDependencies": {
+        "@artemiy/oxfmt-allman": "0.62.0",
+        "@types/bun": "latest",
+        "typescript": "^5.7.0",
+      },
+    },
+    "extension": {
+      "name": "@lp/extension",
+      "version": "0.1.0",
       "dependencies": {
         "@base-ui-components/react": "1.0.0-rc.0",
         "class-variance-authority": "^0.7.1",
@@ -15,14 +24,18 @@
         "zustand": "^5.0.2",
       },
       "devDependencies": {
-        "@artemiy/oxfmt-allman": "0.62.0",
-        "@types/bun": "latest",
         "@types/chrome": "^0.1.0",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "bun-plugin-tailwind": "^0.1.2",
         "tailwindcss": "^4.0.0",
-        "typescript": "^5.7.0",
+      },
+    },
+    "tools": {
+      "name": "@lp/tools",
+      "version": "0.1.0",
+      "dependencies": {
+        "@lp/extension": "workspace:*",
       },
     },
   },
@@ -42,6 +55,10 @@
     "@floating-ui/react-dom": ["@floating-ui/react-dom@2.1.9", "", { "dependencies": { "@floating-ui/dom": "^1.8.0" }, "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@lp/extension": ["@lp/extension@workspace:extension"],
+
+    "@lp/tools": ["@lp/tools@workspace:tools"],
 
     "@oven/bun-darwin-aarch64": ["@oven/bun-darwin-aarch64@1.3.14", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Omj20SuiHBOUjUBIyqtkNjSUIjOtEOJwmbix/ZyFH4BaQ6OZTaaRWIR4TjHVz0yadHgli6lLTiAh1uarnvD49A=="],
 

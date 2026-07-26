@@ -1,0 +1,13 @@
+{
+  "name": "@lp/tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Разбор выгрузок линии и страж коммитов",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@lp/extension": "workspace:*"
+  }
+}

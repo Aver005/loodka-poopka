@@ -1,0 +1,33 @@
+{
+  "name": "@lp/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Расширение-подсказчик: оверлей и боковая панель поверх линии букмекера",
+  "type": "module",
+  "exports": {
+    "./engine": "./src/engine.ts"
+  },
+  "scripts": {
+    "build": "bun run build.ts",
+    "dev": "bun run build.ts --watch",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@base-ui-components/react": "1.0.0-rc.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.469.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.0",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "bun-plugin-tailwind": "^0.1.2",
+    "tailwindcss": "^4.0.0"
+  }
+}
