@@ -12,12 +12,14 @@ const CLASS = 'lp-badge';
  * Бейджи вставляются в светлый DOM страницы: внутрь чужой вёрстки shadow root
  * не воткнуть. Поэтому у них свой префикс и максимально нейтральные стили.
  */
-export function paintBadges(root: HTMLElement, match: Match, edgeFloor: number): void {
+export function paintBadges(root: HTMLElement, match: Match, edgeFloor: number): void
+{
   clearBadges(root);
 
   const byType = new Map(match.offers.map((o) => [o.type, o]));
 
-  for (const a of root.querySelectorAll<HTMLElement>('a[data-type]')) {
+  for (const a of root.querySelectorAll<HTMLElement>('a[data-type]'))
+  {
     const offer = byType.get(a.dataset.type ?? '');
     if (!offer) continue;
 
@@ -27,15 +29,20 @@ export function paintBadges(root: HTMLElement, match: Match, edgeFloor: number):
     const badge = document.createElement('span');
     badge.className = `${CLASS} ${CLASS}--${tier.toLowerCase()}`;
 
-    if (tier === 'C') {
+    if (tier === 'C')
+    {
       // Маржа-ловушки не заслуживают вычислений — их надо просто не замечать.
       badge.classList.add(`${CLASS}--trap`);
       badge.textContent = 'пас';
       badge.title = `${TIER[offer.market].label} — маржа-ловушка, играть не стоит (см. MARKETS.md)`;
-    } else if (need > 1) {
+    }
+    else if (need > 1)
+    {
       badge.textContent = '∅';
       badge.title = 'Кэф слишком низкий: порог входа недостижим ни при какой вероятности';
-    } else {
+    }
+    else
+    {
       badge.textContent = `≥${pct(need, 0)}`;
       badge.title =
         `${TIER[offer.market].label}\n` +
@@ -53,6 +60,7 @@ export function paintBadges(root: HTMLElement, match: Match, edgeFloor: number):
   }
 }
 
-export function clearBadges(root: ParentNode = document): void {
+export function clearBadges(root: ParentNode = document): void
+{
   for (const el of root.querySelectorAll(`.${CLASS}`)) el.remove();
 }

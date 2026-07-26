@@ -9,16 +9,20 @@ import type { StateStorage } from 'zustand/middleware';
  *
  * API асинхронный, persist это поддерживает штатно.
  */
-export const chromeStorage: StateStorage = {
-  getItem: async (name) => {
+export const chromeStorage: StateStorage =
+{
+  getItem: async (name) =>
+  {
     const bag = await chrome.storage.local.get(name);
     return (bag[name] as string | undefined) ?? null;
   },
-  setItem: async (name, value) => {
+  setItem: async (name, value) =>
+  {
     lastWritten.set(name, value);
     await chrome.storage.local.set({ [name]: value });
   },
-  removeItem: async (name) => {
+  removeItem: async (name) =>
+  {
     lastWritten.delete(name);
     await chrome.storage.local.remove(name);
   },
@@ -36,11 +40,10 @@ const lastWritten = new Map<string, string>();
  * У каждого контекста свой экземпляр стора. Без этой подписки они разъедутся:
  * поменял юнит в панели — оверлей продолжит считать по-старому.
  */
-export function syncAcrossContexts(key: string, rehydrate: () => void): () => void {
-  const listener = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    area: string,
-  ) => {
+export function syncAcrossContexts(key: string, rehydrate: () => void): () => void
+{
+  const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) =>
+  {
     if (area !== 'local') return;
     const change = changes[key];
     if (!change) return;

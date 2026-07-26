@@ -2,8 +2,8 @@
   "name": "loodka-poopka",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Эксперимент по прогнозированию матчей CS2: расширение-подсказчик и инструменты разбора линии",
+  "type": "module",
   "scripts": {
     "build": "bun run extension/build.ts",
     "dev": "bun run extension/build.ts --watch",

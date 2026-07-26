@@ -5,7 +5,8 @@ import { DEFAULT_UNIT, EDGE_FLOOR, type Match } from '../engine';
 
 const KEY = 'lp-store';
 
-export interface Settings {
+export interface Settings
+{
   /** Банк в рублях. */
   bank: number;
   /** 1u в рублях. По умолчанию 5% банка — умеренно-агрессивный профиль. */
@@ -18,7 +19,8 @@ export interface Settings {
   autoBothSides: boolean;
 }
 
-export interface StoreState {
+export interface StoreState
+{
   settings: Settings;
   /** Последний разобранный матч. Мост между оверлеем и панелью. */
   current: Match | null;
@@ -33,7 +35,8 @@ export interface StoreState {
   clearEstimates: () => void;
 }
 
-const DEFAULT_SETTINGS: Settings = {
+const DEFAULT_SETTINGS: Settings =
+{
   bank: 5000,
   unit: DEFAULT_UNIT,
   edgeFloor: EDGE_FLOOR,
@@ -46,7 +49,8 @@ const DEFAULT_SETTINGS: Settings = {
 
 export const useStore = create<StoreState>()(
   persist(
-    (set) => ({
+    (set) => (
+    {
       settings: DEFAULT_SETTINGS,
       current: null,
       capturedAt: null,
@@ -55,7 +59,8 @@ export const useStore = create<StoreState>()(
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       setCurrent: (match) => set({ current: match, capturedAt: match ? Date.now() : null }),
       setEstimate: (key, p) =>
-        set((s) => {
+        set((s) =>
+        {
           const next = { ...s.estimates };
           if (p == null || !isFinite(p)) delete next[key];
           else next[key] = Math.min(Math.max(p, 0), 1);
@@ -74,13 +79,16 @@ export const useStore = create<StoreState>()(
 );
 
 /** Подписать этот контекст на изменения из других. Вызывать один раз при старте. */
-export function initStoreSync(): () => void {
-  return syncAcrossContexts(KEY, () => {
+export function initStoreSync(): () => void
+{
+  return syncAcrossContexts(KEY, () =>
+  {
     void useStore.persist.rehydrate();
   });
 }
 
 /** Стабильный ключ оценки: матч + рынок. */
 export const estimateKey = (match: Match | null, offerType: string): string =>
-  `${match?.tournament ?? '?'}|${Object.values(match?.teams ?? {}).map((t) => t.name).join('-')}|${offerType}`;
-
+  `${match?.tournament ?? '?'}|${Object.values(match?.teams ?? {})
+    .map((t) => t.name)
+    .join('-')}|${offerType}`;

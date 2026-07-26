@@ -15,15 +15,22 @@ import { mergeSides, parseOne, type Match } from '../engine';
  */
 
 const visible = (el: Element | null): boolean =>
-  !!el && !!((el as HTMLElement).offsetWidth || (el as HTMLElement).offsetHeight || el.getClientRects().length);
+  !!el &&
+  !!(
+    (el as HTMLElement).offsetWidth ||
+    (el as HTMLElement).offsetHeight ||
+    el.getClientRects().length
+  );
 
-function lca(nodes: Element[]): Element | null {
+function lca(nodes: Element[]): Element | null
+{
   let a: Element | null = nodes[0] ?? null;
   for (const n of nodes.slice(1)) while (a && !a.contains(n)) a = a.parentElement;
   return a;
 }
 
-export function findModal(): HTMLElement | null {
+export function findModal(): HTMLElement | null
+{
   const koefs = [...document.querySelectorAll('.koef')].filter(visible);
   if (!koefs.length) return null;
 
@@ -33,7 +40,8 @@ export function findModal(): HTMLElement | null {
 
   // Поднимаемся, пока не подхватим блок команд — но не дальше, чем начнут
   // добавляться чужие коэффициенты (значит вылезли за пределы своего матча).
-  for (let i = 0; i < 6 && el?.parentElement && el !== document.body; i++) {
+  for (let i = 0; i < 6 && el?.parentElement && el !== document.body; i++)
+  {
     if (hasTeams(el)) break;
     const up: HTMLElement = el.parentElement;
     if ([...up.querySelectorAll('.koef')].filter(visible).length !== koefs.length) break;
@@ -43,20 +51,27 @@ export function findModal(): HTMLElement | null {
 }
 
 /** Вкладки команд. Разметка плавает, поэтому несколько стратегий поиска. */
-export function findTabs(root: Element | null): HTMLElement[] {
-  for (const scope of [root, root?.parentElement, document]) {
+export function findTabs(root: Element | null): HTMLElement[]
+{
+  for (const scope of [root, root?.parentElement, document])
+  {
     if (!scope) continue;
     const probes: (() => (Element | null | undefined)[])[] = [
       () => [scope.querySelector('[class*="team_1"]'), scope.querySelector('[class*="team_2"]')],
-      () => {
+      () =>
+      {
         const s = scope.querySelector('.team_select, [class*="team_select"]');
         return s ? [...s.children] : [];
       },
-      () => [...scope.querySelectorAll('[class*="team_name"]')]
-        .map((n) => n.closest('[class*="team_"]') ?? n.parentElement?.parentElement),
+      () =>
+        [...scope.querySelectorAll('[class*="team_name"]')].map(
+          (n) => n.closest('[class*="team_"]') ?? n.parentElement?.parentElement,
+        ),
     ];
-    for (const probe of probes) {
-      const tabs = probe().filter((v): v is HTMLElement => v instanceof HTMLElement)
+    for (const probe of probes)
+    {
+      const tabs = probe()
+        .filter((v): v is HTMLElement => v instanceof HTMLElement)
         .filter((v, i, arr) => arr.indexOf(v) === i);
       if (tabs.length === 2) return tabs;
     }
@@ -71,25 +86,37 @@ const sig = (root: Element | null): string =>
 export const signature = (): string => sig(findModal());
 
 /** Отпечаток матча, устойчивый к движению кэфов: турнир + названия команд. */
-export function matchFingerprint(m: Match): string {
-  const names = Object.values(m.teams).map((t) => t.name).filter(Boolean).sort();
+export function matchFingerprint(m: Match): string
+{
+  const names = Object.values(m.teams)
+    .map((t) => t.name)
+    .filter(Boolean)
+    .sort();
   return `${m.tournament ?? '?'}|${names.join('|')}`;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function clickTab(tab: HTMLElement, root: Element | null): Promise<boolean> {
+async function clickTab(tab: HTMLElement, root: Element | null): Promise<boolean>
+{
   const before = sig(root);
   const targets = [tab.querySelector('[class*="team_right"]'), tab.firstElementChild, tab];
-  for (const t of targets) {
+  for (const t of targets)
+  {
     if (!(t instanceof HTMLElement)) continue;
-    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'] as const) {
+    for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'] as const)
+    {
       t.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
     }
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 16; i++)
+    {
       await sleep(120);
       const now = sig(findModal() ?? root);
-      if (now && now !== before) { await sleep(300); return true; }
+      if (now && now !== before)
+      {
+        await sleep(300);
+        return true;
+      }
     }
   }
   return false;
@@ -111,13 +138,15 @@ async function clickTab(tab: HTMLElement, root: Element | null): Promise<boolean
  * а лишние узлы это расстояние меняют — привязка съезжает на одну позицию, и кэф
  * овертайма оказывается в книге «чёт/нечёт» с отрицательной маржой.
  */
-function cleanHtml(root: HTMLElement): string {
+function cleanHtml(root: HTMLElement): string
+{
   const clone = root.cloneNode(true) as HTMLElement;
   for (const el of clone.querySelectorAll('.lp-badge, #lp-overlay-host')) el.remove();
   return clone.outerHTML;
 }
 
-export async function captureMatch(bothSides: boolean): Promise<Match | null> {
+export async function captureMatch(bothSides: boolean): Promise<Match | null>
+{
   const root = findModal();
   if (!root) return null;
 
@@ -151,9 +180,11 @@ export async function captureMatch(bothSides: boolean): Promise<Match | null> {
  * блокировки сайта за спам. Решать, что считать изменением, должен вызывающий,
  * потому что только он знает, чьи это мутации.
  */
-export function observeDom(onChange: () => void, delay = 300): () => void {
+export function observeDom(onChange: () => void, delay = 300): () => void
+{
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const ping = () => {
+  const ping = () =>
+  {
     if (timer) clearTimeout(timer);
     timer = setTimeout(onChange, delay);
   };
@@ -162,5 +193,9 @@ export function observeDom(onChange: () => void, delay = 300): () => void {
   mo.observe(document.body, { childList: true, subtree: true, characterData: true });
   ping();
 
-  return () => { mo.disconnect(); if (timer) clearTimeout(timer); };
+  return () =>
+  {
+    mo.disconnect();
+    if (timer) clearTimeout(timer);
+  };
 }

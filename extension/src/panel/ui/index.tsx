@@ -13,10 +13,12 @@ import { cn, usePortalContainer } from '../../lib/utils';
 // ── Button ────────────────────────────────────────────────────────────────────
 const buttonVariants = cva(
   'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-xs font-medium ' +
-  'transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
+    'transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   {
-    variants: {
-      variant: {
+    variants:
+    {
+      variant:
+      {
         default: 'bg-primary text-primary-foreground hover:opacity-90',
         outline: 'border border-border bg-transparent hover:bg-accent',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
@@ -28,8 +30,12 @@ const buttonVariants = cva(
 );
 
 export function Button({
-  className, variant, size, ...props
-}: ComponentProps<'button'> & VariantProps<typeof buttonVariants>) {
+  className,
+  variant,
+  size,
+  ...props
+}: ComponentProps<'button'> & VariantProps<typeof buttonVariants>)
+{
   return <button className={cn(buttonVariants({ variant, size }), className)} {...props} />;
 }
 
@@ -39,7 +45,10 @@ export const Card = ({ className, ...p }: ComponentProps<'section'>) => (
 );
 
 export const CardHeader = ({ className, ...p }: ComponentProps<'header'>) => (
-  <header className={cn('flex items-center gap-2 border-b border-border px-3 py-2', className)} {...p} />
+  <header
+    className={cn('flex items-center gap-2 border-b border-border px-3 py-2', className)}
+    {...p}
+  />
 );
 
 export const CardTitle = ({ className, ...p }: ComponentProps<'h2'>) => (
@@ -66,8 +75,10 @@ export const Input = ({ className, ...p }: ComponentProps<'input'>) => (
 const badgeVariants = cva(
   'inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium tabular-nums',
   {
-    variants: {
-      tone: {
+    variants:
+    {
+      tone:
+      {
         muted: 'bg-muted text-muted-foreground',
         good: 'bg-good/15 text-good',
         warn: 'bg-warn/15 text-warn',
@@ -81,7 +92,11 @@ const badgeVariants = cva(
   },
 );
 
-export const Badge = ({ className, tone, ...p }: ComponentProps<'span'> & VariantProps<typeof badgeVariants>) => (
+export const Badge = ({
+  className,
+  tone,
+  ...p
+}: ComponentProps<'span'> & VariantProps<typeof badgeVariants>) => (
   <span className={cn(badgeVariants({ tone }), className)} {...p} />
 );
 
@@ -93,7 +108,13 @@ export const Table = ({ className, ...p }: ComponentProps<'table'>) => (
 );
 
 export const Th = ({ className, ...p }: ComponentProps<'th'>) => (
-  <th className={cn('border-b border-border px-2 py-1 text-left font-medium text-muted-foreground', className)} {...p} />
+  <th
+    className={cn(
+      'border-b border-border px-2 py-1 text-left font-medium text-muted-foreground',
+      className,
+    )}
+    {...p}
+  />
 );
 
 export const Td = ({ className, ...p }: ComponentProps<'td'>) => (
@@ -102,8 +123,15 @@ export const Td = ({ className, ...p }: ComponentProps<'td'>) => (
 
 // ── Switch ────────────────────────────────────────────────────────────────────
 export function Switch({
-  checked, onCheckedChange, label,
-}: { checked: boolean; onCheckedChange: (v: boolean) => void; label: ReactNode }) {
+  checked,
+  onCheckedChange,
+  label,
+}: {
+  checked: boolean;
+  onCheckedChange: (v: boolean) => void;
+  label: ReactNode;
+})
+{
   return (
     <label className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs">
       <span className="text-muted-foreground">{label}</span>
@@ -132,12 +160,15 @@ export const TooltipProvider = ({ children }: { children: ReactNode }) => (
   <BaseTooltip.Provider delay={200}>{children}</BaseTooltip.Provider>
 );
 
-export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
+export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode })
+{
   // Тот самый один раз: контейнер портала берётся из контекста, а не задаётся при вызове.
   const container = usePortalContainer();
   return (
     <BaseTooltip.Root>
-      <BaseTooltip.Trigger render={<span className="cursor-help underline decoration-dotted underline-offset-2" />}>
+      <BaseTooltip.Trigger
+        render={<span className="cursor-help underline decoration-dotted underline-offset-2" />}
+      >
         {children}
       </BaseTooltip.Trigger>
       <BaseTooltip.Portal container={container}>

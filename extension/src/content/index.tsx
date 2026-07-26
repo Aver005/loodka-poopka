@@ -2,9 +2,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { Match } from '../engine';
 import { OVERLAY_CSS } from '../generated/overlay-css';
 import { mergeSides } from '../engine';
-import {
-  captureMatch, findModal, matchFingerprint, observeDom, signature,
-} from '../lib/modal';
+import { captureMatch, findModal, matchFingerprint, observeDom, signature } from '../lib/modal';
 import { initStoreSync, useStore } from '../store';
 import { clearBadges, paintBadges } from './badges';
 import { Overlay } from './Overlay';
@@ -54,15 +52,17 @@ const GAP = 12;
  * из-за чего модалка прыгала при каждом пересчёте. Фиксированное позиционирование
  * выводит панель из потока: на вёрстку сайта она больше не влияет вообще.
  */
-function positionHost(modal: HTMLElement, el: HTMLElement): void {
+function positionHost(modal: HTMLElement, el: HTMLElement): void
+{
   const r = modal.getBoundingClientRect();
   const spaceRight = window.innerWidth - r.right;
   // Справа, если влезает; иначе слева; если и там тесно — прижимаем к краю окна.
-  const left = spaceRight >= PANEL_WIDTH + GAP
-    ? r.right + GAP
-    : r.left - PANEL_WIDTH - GAP >= GAP
-      ? r.left - PANEL_WIDTH - GAP
-      : Math.max(GAP, window.innerWidth - PANEL_WIDTH - GAP);
+  const left =
+    spaceRight >= PANEL_WIDTH + GAP
+      ? r.right + GAP
+      : r.left - PANEL_WIDTH - GAP >= GAP
+        ? r.left - PANEL_WIDTH - GAP
+        : Math.max(GAP, window.innerWidth - PANEL_WIDTH - GAP);
 
   el.style.left = `${Math.round(left)}px`;
   el.style.top = `${Math.round(Math.max(GAP, Math.min(r.top, window.innerHeight - 120)))}px`;
@@ -71,9 +71,11 @@ function positionHost(modal: HTMLElement, el: HTMLElement): void {
 
 let followTimer: ReturnType<typeof setInterval> | null = null;
 
-function startFollowing(): void {
+function startFollowing(): void
+{
   stopFollowing();
-  const tick = () => {
+  const tick = () =>
+  {
     const m = findModal();
     if (m && host) positionHost(m, host);
   };
@@ -84,13 +86,23 @@ function startFollowing(): void {
   addEventListener('resize', tick, { passive: true });
 }
 
-function stopFollowing(): void {
-  if (followTimer) { clearInterval(followTimer); followTimer = null; }
+function stopFollowing(): void
+{
+  if (followTimer)
+  {
+    clearInterval(followTimer);
+    followTimer = null;
+  }
 }
 
 // ── Монтирование ──────────────────────────────────────────────────────────────
-function ensureHost(modal: HTMLElement): boolean {
-  if (host?.isConnected) { positionHost(modal, host); return true; }
+function ensureHost(modal: HTMLElement): boolean
+{
+  if (host?.isConnected)
+  {
+    positionHost(modal, host);
+    return true;
+  }
 
   host?.remove();
   root = null;
@@ -123,7 +135,8 @@ function ensureHost(modal: HTMLElement): boolean {
   return true;
 }
 
-function unmount(): void {
+function unmount(): void
+{
   stopFollowing();
   root?.unmount();
   root = null;
@@ -134,7 +147,8 @@ function unmount(): void {
   clearBadges();
 }
 
-function render(): void {
+function render(): void
+{
   if (!root || !match) return;
   const { settings } = useStore.getState();
   const stored = secondSides.get(matchFingerprint(match));
@@ -151,27 +165,37 @@ function render(): void {
 }
 
 // ── Съём линии ────────────────────────────────────────────────────────────────
-async function capture(bothSides: boolean): Promise<void> {
+async function capture(bothSides: boolean): Promise<void>
+{
   if (capturing) return;
 
   const modal = findModal();
-  if (!modal) { unmount(); return; }
+  if (!modal)
+  {
+    unmount();
+    return;
+  }
   if (!ensureHost(modal)) return;
 
   capturing = true;
   busy = true;
   render();
 
-  try {
+  try
+  {
     const fresh = await captureMatch(bothSides);
-    if (fresh) {
+    if (fresh)
+    {
       const fp = matchFingerprint(fresh);
 
-      if ((fresh.sides ?? 1) >= 2) {
+      if ((fresh.sides ?? 1) >= 2)
+      {
         // Свежий полный снимок — запоминаем его как источник второй стороны.
         secondSides.set(fp, { match: fresh, at: Date.now() });
         match = fresh;
-      } else {
+      }
+      else
+      {
         // Обычное обновление одной стороны. Если вторая уже снималась —
         // подмешиваем её. Свежие кэфы выигрывают: mergeSides не перетирает
         // офферы, уже присутствующие в первом аргументе.
@@ -182,21 +206,29 @@ async function capture(bothSides: boolean): Promise<void> {
       useStore.getState().setCurrent(match);
 
       const m = findModal();
-      if (m && useStore.getState().settings.showBadges) {
+      if (m && useStore.getState().settings.showBadges)
+      {
         paintBadges(m, match, useStore.getState().settings.edgeFloor);
-      } else {
+      }
+      else
+      {
         clearBadges();
       }
     }
-  } catch (e) {
+  }
+  catch (e)
+  {
     console.warn('[LP] не удалось снять линию:', e);
-  } finally {
+  }
+  finally
+  {
     busy = false;
     render();
     // Даём сайту дорисовать после наших кликов и только потом принимаем
     // текущее состояние за исходное. Без паузы восстановление вкладки
     // тут же прилетело бы обратно как «внешнее изменение».
-    setTimeout(() => {
+    setTimeout(() =>
+    {
       handledSignature = signature();
       capturing = false;
     }, 900);
@@ -204,11 +236,16 @@ async function capture(bothSides: boolean): Promise<void> {
 }
 
 // ── Наблюдение ────────────────────────────────────────────────────────────────
-function onDomChange(): void {
+function onDomChange(): void
+{
   if (capturing) return;
 
   const sig = signature();
-  if (!sig) { if (host) unmount(); return; }
+  if (!sig)
+  {
+    if (host) unmount();
+    return;
+  }
   if (sig === handledSignature) return;
 
   handledSignature = sig;

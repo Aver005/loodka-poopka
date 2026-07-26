@@ -1,16 +1,38 @@
 import { useMemo, useState } from 'react';
 import {
-  analyze, edgeOf, imp, nameOf, oddsFmt, pct, requiredP, stakeFor, TIER, TIER_MARK,
-  type Offer, type TeamSlot,
+  analyze,
+  edgeOf,
+  imp,
+  nameOf,
+  oddsFmt,
+  pct,
+  requiredP,
+  stakeFor,
+  TIER,
+  TIER_MARK,
+  type Offer,
+  type TeamSlot,
 } from '../engine';
 import { buildBrief } from '../lib/brief';
 import { estimateKey, useStore } from '../store';
 import {
-  Badge, Button, Card, CardBody, CardHeader, CardTitle,
-  Input, Switch, Table, Td, Th, Tooltip, TooltipProvider,
+  Badge,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  Input,
+  Switch,
+  Table,
+  Td,
+  Th,
+  Tooltip,
+  TooltipProvider,
 } from './ui';
 
-export function App() {
+export function App()
+{
   const current = useStore((s) => s.current);
   const capturedAt = useStore((s) => s.capturedAt);
   const settings = useStore((s) => s.settings);
@@ -21,7 +43,8 @@ export function App() {
 
   const result = useMemo(() => (current ? analyze(current) : null), [current]);
 
-  if (!current || !result) {
+  if (!current || !result)
+  {
     return (
       <Shell>
         <Card>
@@ -39,7 +62,8 @@ export function App() {
   const B: TeamSlot = A === '1' ? '2' : '1';
   const stale = capturedAt != null && Date.now() - capturedAt > 10 * 60_000;
 
-  const copyBrief = async () => {
+  const copyBrief = async () =>
+  {
     await navigator.clipboard.writeText(buildBrief(current, settings.edgeFloor));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
@@ -60,7 +84,12 @@ export function App() {
           <span>{current.tournament ?? '?'}</span>
           <span>·</span>
           <span>{current.format ?? '?'}</span>
-          {current.timer && (<><span>·</span><span>до старта {current.timer}</span></>)}
+          {current.timer && (
+            <>
+              <span>·</span>
+              <span>до старта {current.timer}</span>
+            </>
+          )}
           {(current.sides ?? 1) < 2 && (
             <Badge tone="warn">
               <Tooltip content="По одной стороне вероятность разгрома соперника выводится из «+1.5», а там своя маржа — вычитанием она не убирается. На реальных данных разница 18.9% против 25.2%.">
@@ -74,8 +103,11 @@ export function App() {
 
       {shape && (
         <Card>
-          <CardHeader><CardTitle>Сетка исходов</CardTitle>
-            <Badge tone="muted" className="ml-auto">{shape.bookCount}/3 книг</Badge>
+          <CardHeader>
+            <CardTitle>Сетка исходов</CardTitle>
+            <Badge tone="muted" className="ml-auto">
+              {shape.bookCount}/3 книг
+            </Badge>
           </CardHeader>
           <CardBody>
             {shape.reduced ? (
@@ -93,9 +125,15 @@ export function App() {
               </Table>
             )}
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
-              <span>{name(A)} <b className="text-good">{pct(shape.pA)}</b></span>
-              <span>{name(B)} <b className="text-good">{pct(shape.pB)}</b></span>
-              <span className="text-muted-foreground">три карты <b className="text-foreground">{pct(shape.p3maps)}</b></span>
+              <span>
+                {name(A)} <b className="text-good">{pct(shape.pA)}</b>
+              </span>
+              <span>
+                {name(B)} <b className="text-good">{pct(shape.pB)}</b>
+              </span>
+              <span className="text-muted-foreground">
+                три карты <b className="text-foreground">{pct(shape.p3maps)}</b>
+              </span>
             </div>
 
             {shape.mapCheck && (
@@ -104,18 +142,21 @@ export function App() {
                 <Tooltip content="Из вероятности взять одну карту выводится вероятность серии по формуле q²(3−2q). Сходится с книгой исхода — значит модель букмекера цельная и арифметической щели в ней нет.">
                   сверка через карту #1
                 </Tooltip>
-                : {pct(shape.mapCheck.q)} → {pct(shape.mapCheck.seriesFromMap)} против {pct(shape.pA)}
+                : {pct(shape.mapCheck.q)} → {pct(shape.mapCheck.seriesFromMap)} против{' '}
+                {pct(shape.pA)}
               </p>
             )}
 
             {divergence != null && (
-              <p className={`mt-1 text-[11px] ${Math.abs(divergence) >= 0.05 ? 'text-warn' : 'text-muted-foreground'}`}>
+              <p
+                className={`mt-1 text-[11px] ${Math.abs(divergence) >= 0.05 ? 'text-warn' : 'text-muted-foreground'}`}
+              >
                 {Math.abs(divergence) >= 0.05 ? '🚨' : '✅'}{' '}
                 <Tooltip content="Маржа внутри каждой книги уже снята, поэтому расхождение — это несогласие самих оценок букмекера, а не её след. Обычно сильнее та книга, где маржа ниже.">
                   книги о трёх картах
                 </Tooltip>
-                : форы {pct(shape.p3FromHandicaps)} против тотала {pct(shape.p3FromTotals)}
-                {' '}({(Math.abs(divergence) * 100).toFixed(1)} п.п.)
+                : форы {pct(shape.p3FromHandicaps)} против тотала {pct(shape.p3FromTotals)} (
+                {(Math.abs(divergence) * 100).toFixed(1)} п.п.)
               </p>
             )}
           </CardBody>
@@ -125,7 +166,9 @@ export function App() {
       <Card>
         <CardHeader>
           <CardTitle>Калькулятор Edge</CardTitle>
-          <span className="ml-auto text-[10px] text-muted-foreground">впиши свою вероятность, %</span>
+          <span className="ml-auto text-[10px] text-muted-foreground">
+            впиши свою вероятность, %
+          </span>
         </CardHeader>
         <CardBody className="px-0 py-0">
           <Table>
@@ -140,7 +183,8 @@ export function App() {
               </tr>
             </thead>
             <tbody>
-              {priority.map((o) => {
+              {priority.map((o) =>
+              {
                 const key = estimateKey(current, o.type);
                 const p = estimates[key];
                 const need = requiredP(o.odds, settings.edgeFloor);
@@ -155,26 +199,33 @@ export function App() {
                       {o.team && <span className="text-muted-foreground"> · {name(o.team)}</span>}
                     </Td>
                     <Td className="text-right font-medium">{oddsFmt(o.odds)}</Td>
-                    <Td className="text-right text-muted-foreground">{need > 1 ? '∅' : pct(need, 0)}</Td>
+                    <Td className="text-right text-muted-foreground">
+                      {need > 1 ? '∅' : pct(need, 0)}
+                    </Td>
                     <Td className="text-right">
                       <Input
                         className="h-6 w-12 px-1 text-right"
                         inputMode="decimal"
                         placeholder="—"
                         value={p != null ? Math.round(p * 1000) / 10 : ''}
-                        onChange={(e) => {
+                        onChange={(e) =>
+                        {
                           const v = e.target.value.replace(',', '.').trim();
                           setEstimate(key, v === '' ? null : Number(v) / 100);
                         }}
                       />
                     </Td>
-                    <Td className={`text-right font-medium ${edge == null ? '' : edge >= settings.edgeFloor ? 'text-good' : 'text-bad'}`}>
+                    <Td
+                      className={`text-right font-medium ${edge == null ? '' : edge >= settings.edgeFloor ? 'text-good' : 'text-bad'}`}
+                    >
                       {edge == null ? '—' : `${edge > 0 ? '+' : ''}${(edge * 100).toFixed(1)}%`}
                     </Td>
                     <Td className="text-right">
-                      {stake && stake.units > 0
-                        ? <Badge tone={stake.flag === '🟢' ? 'good' : 'warn'}>{stake.sum} ₽</Badge>
-                        : <span className="text-muted-foreground">—</span>}
+                      {stake && stake.units > 0 ? (
+                        <Badge tone={stake.flag === '🟢' ? 'good' : 'warn'}>{stake.sum} ₽</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </Td>
                   </tr>
                 );
@@ -186,29 +237,35 @@ export function App() {
 
       {books.length > 0 && (
         <Card>
-          <CardHeader><CardTitle>Маржа по книгам</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Маржа по книгам</CardTitle>
+          </CardHeader>
           <CardBody className="px-0 py-0">
             <Table>
               <tbody>
-                {[...books].sort((a, b) => a.margin - b.margin).map((b) => (
-                  <tr key={b.label}>
-                    <Td className="text-[11px]">{TIER_MARK[TIER[b.market].tier]} {b.label}</Td>
-                    <Td className="text-right text-muted-foreground">
-                      {oddsFmt(b.a.odds)} / {oddsFmt(b.b.odds)}
-                    </Td>
-                    <Td className="text-right">
-                      <Badge tone={b.margin > 0.095 ? 'bad' : b.margin > 0.088 ? 'warn' : 'good'}>
-                        {pct(b.margin)}
-                      </Badge>
-                    </Td>
-                  </tr>
-                ))}
+                {[...books]
+                  .sort((a, b) => a.margin - b.margin)
+                  .map((b) => (
+                    <tr key={b.label}>
+                      <Td className="text-[11px]">
+                        {TIER_MARK[TIER[b.market].tier]} {b.label}
+                      </Td>
+                      <Td className="text-right text-muted-foreground">
+                        {oddsFmt(b.a.odds)} / {oddsFmt(b.b.odds)}
+                      </Td>
+                      <Td className="text-right">
+                        <Badge tone={b.margin > 0.095 ? 'bad' : b.margin > 0.088 ? 'warn' : 'good'}>
+                          {pct(b.margin)}
+                        </Badge>
+                      </Td>
+                    </tr>
+                  ))}
               </tbody>
             </Table>
             {cheapest && (
               <p className="px-3 py-2 text-[11px] text-muted-foreground">
-                Дешевле всего — <span className="text-foreground">{cheapest.label}</span>. Выбор рынка
-                важнее выбора команды: маржа это фора букмекеру ещё до анализа.
+                Дешевле всего — <span className="text-foreground">{cheapest.label}</span>. Выбор
+                рынка важнее выбора команды: маржа это фора букмекеру ещё до анализа.
               </p>
             )}
           </CardBody>
@@ -220,28 +277,37 @@ export function App() {
       </Button>
 
       <Card>
-        <CardHeader><CardTitle>Настройки</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Настройки</CardTitle>
+        </CardHeader>
         <CardBody className="space-y-1">
           <label className="flex items-center justify-between gap-3 py-1 text-xs">
             <span className="text-muted-foreground">Банк, ₽</span>
             <Input
-              className="w-20 text-right" inputMode="numeric" value={settings.bank}
+              className="w-20 text-right"
+              inputMode="numeric"
+              value={settings.bank}
               onChange={(e) => setSettings({ bank: Number(e.target.value) || 0 })}
             />
           </label>
           <label className="flex items-center justify-between gap-3 py-1 text-xs">
             <span className="text-muted-foreground">1 юнит, ₽</span>
             <Input
-              className="w-20 text-right" inputMode="numeric" value={settings.unit}
+              className="w-20 text-right"
+              inputMode="numeric"
+              value={settings.unit}
               onChange={(e) => setSettings({ unit: Number(e.target.value) || 0 })}
             />
           </label>
           <label className="flex items-center justify-between gap-3 py-1 text-xs">
             <span className="text-muted-foreground">Порог Edge, %</span>
             <Input
-              className="w-20 text-right" inputMode="decimal"
+              className="w-20 text-right"
+              inputMode="decimal"
               value={Math.round(settings.edgeFloor * 1000) / 10}
-              onChange={(e) => setSettings({ edgeFloor: (Number(e.target.value.replace(',', '.')) || 0) / 100 })}
+              onChange={(e) =>
+                setSettings({ edgeFloor: (Number(e.target.value.replace(',', '.')) || 0) / 100 })
+              }
             />
           </label>
           <Switch
@@ -255,8 +321,8 @@ export function App() {
             label="Бейджи у коэффициентов"
           />
           <p className="pt-1 text-[10px] leading-snug text-muted-foreground">
-            Юнит — 5% банка на старте. Пересчитывается раз в неделю от текущего банка:
-            банк падает — падает и размер ставок.
+            Юнит — 5% банка на старте. Пересчитывается раз в неделю от текущего банка: банк падает —
+            падает и размер ставок.
           </p>
         </CardBody>
       </Card>
@@ -266,7 +332,9 @@ export function App() {
 
 const Shell = ({ children }: { children: React.ReactNode }) => (
   <TooltipProvider>
-    <main className="flex min-h-dvh flex-col gap-3 bg-background p-3 text-foreground">{children}</main>
+    <main className="flex min-h-dvh flex-col gap-3 bg-background p-3 text-foreground">
+      {children}
+    </main>
   </TooltipProvider>
 );
 

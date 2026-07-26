@@ -1,6 +1,12 @@
 import {
-  analyze, nameOf, oddsFmt, pct, requiredP, TIER,
-  type Match, type TeamSlot,
+  analyze,
+  nameOf,
+  oddsFmt,
+  pct,
+  requiredP,
+  TIER,
+  type Match,
+  type TeamSlot,
 } from '../engine';
 
 /**
@@ -15,23 +21,30 @@ import {
  * Иначе модель получит якорь и подгонит свою оценку под линию, а именно этого
  * правило слепой оценки и избегает.
  */
-export function buildBrief(match: Match, edgeFloor = 0.03): string {
+export function buildBrief(match: Match, edgeFloor = 0.03): string
+{
   const { shape, books, cheapest, divergence } = analyze(match);
   const name = (slot: TeamSlot) => nameOf(match, slot);
   const L: string[] = [];
 
   L.push(`# Разбор матча: ${name('1')} vs ${name('2')}`, '');
-  L.push(`**Турнир:** ${match.tournament ?? '?'} · **Формат:** ${match.format ?? '?'}` +
-         (match.timer ? ` · **До старта:** ${match.timer}` : ''));
+  L.push(
+    `**Турнир:** ${match.tournament ?? '?'} · **Формат:** ${match.format ?? '?'}` +
+      (match.timer ? ` · **До старта:** ${match.timer}` : ''),
+  );
   L.push('');
-  L.push('Линия снята расширением, вся арифметика ниже уже посчитана — вероятности очищены от маржи.');
+  L.push(
+    'Линия снята расширением, вся арифметика ниже уже посчитана — вероятности очищены от маржи.',
+  );
   L.push('');
 
-  if (shape) {
+  if (shape)
+  {
     L.push('## Что говорит линия', '');
     const A = match.active as TeamSlot;
     const B: TeamSlot = A === '1' ? '2' : '1';
-    if (shape.fair) {
+    if (shape.fair)
+    {
       L.push('| Исход | Вероятность |', '|---|:-:|');
       L.push(`| ${name(A)} 2:0 | ${pct(shape.fair.a20)} |`);
       L.push(`| ${name(A)} 2:1 | ${pct(shape.fair.a21)} |`);
@@ -39,36 +52,55 @@ export function buildBrief(match: Match, edgeFloor = 0.03): string {
       L.push(`| ${name(B)} 2:0 | ${pct(shape.fair.b20)} |`);
       L.push('');
     }
-    L.push(`**Итог:** ${name(A)} ${pct(shape.pA)} · ${name(B)} ${pct(shape.pB)} · три карты ${pct(shape.p3maps)}`);
-    if (shape.reduced) L.push('', '⚠️ Форы по картам в линии нет — разбивка «всухую / 2:1» недоступна.');
-    if (shape.solidHandicaps === false) {
+    L.push(
+      `**Итог:** ${name(A)} ${pct(shape.pA)} · ${name(B)} ${pct(shape.pB)} · три карты ${pct(shape.p3maps)}`,
+    );
+    if (shape.reduced)
+      L.push('', '⚠️ Форы по картам в линии нет — разбивка «всухую / 2:1» недоступна.');
+    if (shape.solidHandicaps === false)
+    {
       L.push('', '⚠️ Фора снята только с одной стороны — оценка разгрома занижена.');
     }
-    if (divergence != null && Math.abs(divergence) >= 0.05) {
-      L.push('', `🚨 **Книги расходятся на ${(Math.abs(divergence) * 100).toFixed(1)} п.п.** по вероятности трёх карт: ` +
-             `по форам ${pct(shape.p3FromHandicaps)}, по тоталу карт ${pct(shape.p3FromTotals)}.`);
+    if (divergence != null && Math.abs(divergence) >= 0.05)
+    {
+      L.push(
+        '',
+        `🚨 **Книги расходятся на ${(Math.abs(divergence) * 100).toFixed(1)} п.п.** по вероятности трёх карт: ` +
+          `по форам ${pct(shape.p3FromHandicaps)}, по тоталу карт ${pct(shape.p3FromTotals)}.`,
+      );
     }
-    if (shape.mapCheck) {
+    if (shape.mapCheck)
+    {
       const d = Math.abs(shape.mapCheck.seriesFromMap - shape.pA);
-      L.push('', `Сверка через карту #1: ${pct(shape.mapCheck.q)} на карту → q²(3−2q) = ` +
-             `${pct(shape.mapCheck.seriesFromMap)} на серию против ${pct(shape.pA)} в книге исхода ` +
-             `(расхождение ${(d * 100).toFixed(1)} п.п.).`);
+      L.push(
+        '',
+        `Сверка через карту #1: ${pct(shape.mapCheck.q)} на карту → q²(3−2q) = ` +
+          `${pct(shape.mapCheck.seriesFromMap)} на серию против ${pct(shape.pA)} в книге исхода ` +
+          `(расхождение ${(d * 100).toFixed(1)} п.п.).`,
+      );
     }
     L.push('');
   }
 
-  if (books.length) {
+  if (books.length)
+  {
     L.push('## Маржа по книгам', '');
     L.push('| Рынок | Кэфы | Маржа |', '|---|---|:-:|');
-    for (const b of [...books].sort((x, y) => x.margin - y.margin)) {
+    for (const b of [...books].sort((x, y) => x.margin - y.margin))
+    {
       const flag = b.suspicious ? ' 🚨 **разбор сбоил, не доверять**' : '';
-      L.push(`| ${b.label} | ${oddsFmt(b.a.odds)} / ${oddsFmt(b.b.odds)} | ${pct(b.margin)}${flag} |`);
+      L.push(
+        `| ${b.label} | ${oddsFmt(b.a.odds)} / ${oddsFmt(b.b.odds)} | ${pct(b.margin)}${flag} |`,
+      );
     }
     if (cheapest) L.push('', `Дешевле всего — **${cheapest.label}** (${pct(cheapest.margin)}).`);
-    if (books.some((b) => b.suspicious)) {
+    if (books.some((b) => b.suspicious))
+    {
       L.push('');
-      L.push('> 🚨 Строки с пометкой собраны неверно: маржа вне правдоподобного диапазона ' +
-             'означает, что в одну книгу попали кэфы разных рынков. Ставки по ним не рассматривать.');
+      L.push(
+        '> 🚨 Строки с пометкой собраны неверно: маржа вне правдоподобного диапазона ' +
+          'означает, что в одну книгу попали кэфы разных рынков. Ставки по ним не рассматривать.',
+      );
     }
     L.push('');
   }
@@ -78,13 +110,17 @@ export function buildBrief(match: Match, edgeFloor = 0.03): string {
     .filter((o) => TIER[o.market].tier !== 'C')
     .sort((a, b) => TIER[a.market].order - TIER[b.market].order);
 
-  if (priority.length) {
+  if (priority.length)
+  {
     L.push(`## Порог входа (Edge ≥ ${(edgeFloor * 100).toFixed(0)}%)`, '');
     L.push('| Ставка | Кэф | Нужна моя P выше |', '|---|:-:|:-:|');
-    for (const o of priority) {
+    for (const o of priority)
+    {
       const need = requiredP(o.odds, edgeFloor);
       const tag = o.team ? ` (${name(o.team)})` : '';
-      L.push(`| ${o.text || o.type}${tag} | ${oddsFmt(o.odds)} | ${need > 1 ? 'недостижимо' : pct(need)} |`);
+      L.push(
+        `| ${o.text || o.type}${tag} | ${oddsFmt(o.odds)} | ${need > 1 ? 'недостижимо' : pct(need)} |`,
+      );
     }
     L.push('');
   }

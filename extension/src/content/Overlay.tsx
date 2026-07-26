@@ -1,12 +1,21 @@
 import { useMemo, useState } from 'react';
 import {
-  analyze, nameOf, oddsFmt, pct, requiredP, TIER, TIER_MARK,
-  type Match, type Offer, type TeamSlot,
+  analyze,
+  nameOf,
+  oddsFmt,
+  pct,
+  requiredP,
+  TIER,
+  TIER_MARK,
+  type Match,
+  type Offer,
+  type TeamSlot,
 } from '../engine';
 import { buildBrief } from '../lib/brief';
 import { useStore } from '../store';
 
-interface Props {
+interface Props
+{
   match: Match;
   busy: boolean;
   /** Сколько миллисекунд назад снималась вторая сторона; null — ни разу. */
@@ -23,7 +32,8 @@ interface Props {
  * ни тултипов. Всё богатое — в боковой панели браузера, где свой документ и нет
  * чужого CSS. Здесь только то, что читается взглядом, не отрываясь от ставок.
  */
-export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }: Props) {
+export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }: Props)
+{
   const edgeFloor = useStore((s) => s.settings.edgeFloor);
   const [collapsed, setCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -36,7 +46,8 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
   const staleMin = secondSideAgeMs != null ? Math.floor(secondSideAgeMs / 60_000) : null;
   const secondSideStale = staleMin != null && staleMin >= 5;
 
-  const copyBrief = () => {
+  const copyBrief = () =>
+  {
     void navigator.clipboard.writeText(buildBrief(match, edgeFloor));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
@@ -56,7 +67,8 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
         <span className="size-1.5 shrink-0 rounded-full bg-primary" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-semibold leading-tight">
-            {nameOf(match, '1')} <span className="text-muted-foreground">vs</span> {nameOf(match, '2')}
+            {nameOf(match, '1')} <span className="text-muted-foreground">vs</span>{' '}
+            {nameOf(match, '2')}
           </div>
           <div className="truncate text-[10px] text-muted-foreground">
             {match.tournament ?? '?'} · {match.format ?? '?'}
@@ -101,9 +113,9 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
               </>
             ) : (
               <p className="text-[11px] leading-snug text-muted-foreground">
-                Сетку исходов не построить: нужны кэфы <b className="text-foreground">обеих</b> команд
-                на исход серии, а снята одна вкладка.
-                {' '}Нажми <b className="text-foreground">«Обе стороны»</b> внизу.
+                Сетку исходов не построить: нужны кэфы <b className="text-foreground">обеих</b>{' '}
+                команд на исход серии, а снята одна вкладка. Нажми{' '}
+                <b className="text-foreground">«Обе стороны»</b> внизу.
               </p>
             )}
           </Section>
@@ -113,14 +125,20 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
             <Section title="Порог входа" hint={`Edge ≥ ${(edgeFloor * 100).toFixed(0)}%`}>
               <table className="w-full text-[11px]">
                 <tbody>
-                  {priority.map((o) => {
+                  {priority.map((o) =>
+                  {
                     const need = requiredP(o.odds, edgeFloor);
                     return (
                       <tr key={o.type} className="border-b border-border/40 last:border-0">
                         <td className="py-1 pr-2 leading-tight">
                           <span className="mr-1">{TIER_MARK[TIER[o.market].tier]}</span>
                           {o.text || o.type}
-                          {o.team && <span className="text-muted-foreground"> · {nameOf(match, o.team)}</span>}
+                          {o.team && (
+                            <span className="text-muted-foreground">
+                              {' '}
+                              · {nameOf(match, o.team)}
+                            </span>
+                          )}
                         </td>
                         <td className="py-1 pr-2 text-right tabular-nums text-muted-foreground">
                           {oddsFmt(o.odds)}
@@ -134,7 +152,8 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
                 </tbody>
               </table>
               <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
-                Цифра справа — какой должна быть <b>твоя</b> оценка вероятности, чтобы ставка окупалась.
+                Цифра справа — какой должна быть <b>твоя</b> оценка вероятности, чтобы ставка
+                окупалась.
               </p>
             </Section>
           )}
@@ -144,28 +163,41 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
             <Section title="Маржа по книгам">
               <table className="w-full text-[11px]">
                 <tbody>
-                  {[...books].sort((a, b) => a.margin - b.margin).map((b) => (
-                    <tr key={b.label} className="border-b border-border/40 last:border-0">
-                      <td className="py-1 pr-2 leading-tight">{b.label}</td>
-                      <td className="py-1 text-right tabular-nums">
-                        {b.suspicious ? (
-                          <span className="text-bad" title="Маржа вне правдоподобного диапазона — в книгу попали кэфы разных рынков. Не доверять.">
-                            🚨 {pct(b.margin)}
-                          </span>
-                        ) : (
-                          <span className={b.margin > 0.095 ? 'text-bad' : b.margin > 0.088 ? 'text-warn' : 'text-good'}>
-                            {pct(b.margin)}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                  {[...books]
+                    .sort((a, b) => a.margin - b.margin)
+                    .map((b) => (
+                      <tr key={b.label} className="border-b border-border/40 last:border-0">
+                        <td className="py-1 pr-2 leading-tight">{b.label}</td>
+                        <td className="py-1 text-right tabular-nums">
+                          {b.suspicious ? (
+                            <span
+                              className="text-bad"
+                              title="Маржа вне правдоподобного диапазона — в книгу попали кэфы разных рынков. Не доверять."
+                            >
+                              🚨 {pct(b.margin)}
+                            </span>
+                          ) : (
+                            <span
+                              className={
+                                b.margin > 0.095
+                                  ? 'text-bad'
+                                  : b.margin > 0.088
+                                    ? 'text-warn'
+                                    : 'text-good'
+                              }
+                            >
+                              {pct(b.margin)}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
               {cheapest && (
                 <p className="mt-1.5 text-[10px] leading-snug text-muted-foreground">
-                  Дешевле всего — <span className="text-foreground">{cheapest.label}</span>.
-                  Выбор рынка важнее выбора команды.
+                  Дешевле всего — <span className="text-foreground">{cheapest.label}</span>. Выбор
+                  рынка важнее выбора команды.
                 </p>
               )}
             </Section>
@@ -175,36 +207,56 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
           <Section>
             <div className="space-y-1">
               {oneSided ? (
-                <Note tone="warn" title="По одной стороне вероятность разгрома соперника выводится из «+1.5», а там своя маржа — вычитанием она не убирается. На реальных данных 18.9% против 25.2%.">
+                <Note
+                  tone="warn"
+                  title="По одной стороне вероятность разгрома соперника выводится из «+1.5», а там своя маржа — вычитанием она не убирается. На реальных данных 18.9% против 25.2%."
+                >
                   снята одна сторона — оценка разгрома занижена
                 </Note>
               ) : secondSideStale ? (
-                <Note tone="warn" title="Кэфы второй команды переиспользуются с прошлого снятия. Первая сторона свежая, вторая — нет. Нажми «Обе стороны», чтобы обновить обе.">
+                <Note
+                  tone="warn"
+                  title="Кэфы второй команды переиспользуются с прошлого снятия. Первая сторона свежая, вторая — нет. Нажми «Обе стороны», чтобы обновить обе."
+                >
                   вторая сторона снята {staleMin} мин назад — цены могли уехать
                 </Note>
               ) : (
-                <Note tone="good" title="Обе вкладки команд сняты, маржа снимается корректно во всех книгах.">
+                <Note
+                  tone="good"
+                  title="Обе вкладки команд сняты, маржа снимается корректно во всех книгах."
+                >
                   обе стороны на месте{staleMin ? ` (вторая — ${staleMin} мин назад)` : ''}
                 </Note>
               )}
               {divergence != null && Math.abs(divergence) >= 0.05 && (
-                <Note tone="warn" title="Маржа внутри книг уже снята, значит это расхождение самих оценок букмекера, а не её след.">
+                <Note
+                  tone="warn"
+                  title="Маржа внутри книг уже снята, значит это расхождение самих оценок букмекера, а не её след."
+                >
                   книги расходятся на {(Math.abs(divergence) * 100).toFixed(1)} п.п. по трём картам
                 </Note>
               )}
-              {shape?.mapCheck && (
-                Math.abs(shape.mapCheck.seriesFromMap - shape.pA) < 0.02 ? (
-                  <Note tone="good" title="Вероятность серии, выведенная из карты #1 через q²(3−2q), сходится с книгой исхода.">
+              {shape?.mapCheck &&
+                (Math.abs(shape.mapCheck.seriesFromMap - shape.pA) < 0.02 ? (
+                  <Note
+                    tone="good"
+                    title="Вероятность серии, выведенная из карты #1 через q²(3−2q), сходится с книгой исхода."
+                  >
                     модель линии цельная
                   </Note>
                 ) : (
-                  <Note tone="warn" title="Из карты #1 через q²(3−2q) выводится одна вероятность серии, а книга исхода даёт другую. Обычно так выглядит ручная правка линии.">
+                  <Note
+                    tone="warn"
+                    title="Из карты #1 через q²(3−2q) выводится одна вероятность серии, а книга исхода даёт другую. Обычно так выглядит ручная правка линии."
+                  >
                     карта #1 и исход расходятся на{' '}
                     {(Math.abs(shape.mapCheck.seriesFromMap - shape.pA) * 100).toFixed(1)} п.п.
                   </Note>
-                )
-              )}
-              <Note tone="muted" title="Чёт/нечёт, пистолеты, «первыми N раундов», овертайм — маржа 8–10% при нулевой предсказуемости.">
+                ))}
+              <Note
+                tone="muted"
+                title="Чёт/нечёт, пистолеты, «первыми N раундов», овертайм — маржа 8–10% при нулевой предсказуемости."
+              >
                 бейдж «пас» = маржа-ловушка, туда не смотрим
               </Note>
             </div>
@@ -216,7 +268,11 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
       {/* Кнопки доступны всегда. «Обе стороны» — ручное действие, и прятать его
           после первого использования означало бы запереть пользователя в худших данных. */}
       <footer className="flex shrink-0 gap-1.5 border-t border-border bg-background/60 px-2 py-2">
-        <Btn onClick={onRefresh} disabled={busy} title="Пересчитать по текущим кэфам. Вкладки не переключаются.">
+        <Btn
+          onClick={onRefresh}
+          disabled={busy}
+          title="Пересчитать по текущим кэфам. Вкладки не переключаются."
+        >
           {busy ? 'Считаю…' : 'Обновить'}
         </Btn>
         <Btn
@@ -226,7 +282,9 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
         >
           Обе стороны
         </Btn>
-        <Btn onClick={copyBrief} primary>{copied ? '✓' : 'Бриф'}</Btn>
+        <Btn onClick={copyBrief} primary>
+          {copied ? '✓' : 'Бриф'}
+        </Btn>
       </footer>
     </div>
   );
@@ -234,13 +292,22 @@ export function Overlay({ match, busy, secondSideAgeMs, onRefresh, onBothSides }
 
 // ── Мелочи ────────────────────────────────────────────────────────────────────
 function Section({
-  title, hint, children,
-}: { title?: string; hint?: string; children: React.ReactNode }) {
+  title,
+  hint,
+  children,
+}: {
+  title?: string;
+  hint?: string;
+  children: React.ReactNode;
+})
+{
   return (
     <section className="border-b border-border/60 px-3 py-2.5 last:border-0">
       {title && (
         <div className="mb-1.5 flex items-baseline justify-between">
-          <h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+          <h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {title}
+          </h3>
           {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
         </div>
       )}
@@ -249,13 +316,18 @@ function Section({
   );
 }
 
-function Side({ name, value, lead }: { name: string; value: string; lead: boolean }) {
+function Side({ name, value, lead }: { name: string; value: string; lead: boolean })
+{
   return (
-    <div className={`flex-1 rounded-lg border px-2 py-1.5 ${
-      lead ? 'border-primary/40 bg-primary/10' : 'border-border bg-background/40'
-    }`}>
+    <div
+      className={`flex-1 rounded-lg border px-2 py-1.5 ${
+        lead ? 'border-primary/40 bg-primary/10' : 'border-border bg-background/40'
+      }`}
+    >
       <div className="truncate text-[10px] text-muted-foreground">{name}</div>
-      <div className={`text-base font-bold tabular-nums ${lead ? 'text-primary' : 'text-foreground'}`}>
+      <div
+        className={`text-base font-bold tabular-nums ${lead ? 'text-primary' : 'text-foreground'}`}
+      >
         {value}
       </div>
     </div>
@@ -270,11 +342,19 @@ const GridRow = ({ label, value }: { label: string; value: string }) => (
 );
 
 function Btn({
-  children, onClick, disabled, primary, title,
+  children,
+  onClick,
+  disabled,
+  primary,
+  title,
 }: {
-  children: React.ReactNode; onClick: () => void;
-  disabled?: boolean; primary?: boolean; title?: string;
-}) {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  title?: string;
+})
+{
   return (
     <button
       type="button"
@@ -293,16 +373,27 @@ function Btn({
 }
 
 function Note({
-  children, tone, title,
-}: { children: React.ReactNode; tone: 'warn' | 'good' | 'muted'; title: string }) {
-  const styles = {
+  children,
+  tone,
+  title,
+}: {
+  children: React.ReactNode;
+  tone: 'warn' | 'good' | 'muted';
+  title: string;
+})
+{
+  const styles =
+  {
     warn: 'bg-warn/12 text-warn',
     good: 'bg-good/12 text-good',
     muted: 'bg-muted text-muted-foreground',
   }[tone];
   const icon = { warn: '⚠️', good: '✅', muted: 'ℹ️' }[tone];
   return (
-    <div title={title} className={`cursor-help rounded px-1.5 py-1 text-[10px] leading-snug ${styles}`}>
+    <div
+      title={title}
+      className={`cursor-help rounded px-1.5 py-1 text-[10px] leading-snug ${styles}`}
+    >
       {icon} {children}
     </div>
   );
