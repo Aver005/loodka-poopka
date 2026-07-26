@@ -1,0 +1,8 @@
+# Коммиты, которые трогали только форматирование. git blame их пропускает
+# и показывает того, кто реально писал строку.
+#
+# Включить у себя один раз:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: 🎨 Reformat with oxfmt-allman
+3a286e0f4d2e3f7aef8dc23d15976458d83abca6
