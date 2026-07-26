@@ -12,7 +12,9 @@
     "scan": "bun run tools/scan-secrets.ts",
     "scan:all": "bun run tools/scan-secrets.ts --all",
     "hook:install": "bun run tools/scan-secrets.ts --install",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check ."
   },
   "dependencies": {
     "@base-ui-components/react": "1.0.0-rc.0",
@@ -25,6 +27,7 @@
     "zustand": "^5.0.2"
   },
   "devDependencies": {
+    "@artemiy/oxfmt-allman": "0.62.0",
     "@types/bun": "latest",
     "@types/chrome": "^0.1.0",
     "@types/react": "^19.0.0",

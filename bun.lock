@@ -15,6 +15,7 @@
         "zustand": "^5.0.2",
       },
       "devDependencies": {
+        "@artemiy/oxfmt-allman": "0.62.0",
         "@types/bun": "latest",
         "@types/chrome": "^0.1.0",
         "@types/react": "^19.0.0",
@@ -26,6 +27,8 @@
     },
   },
   "packages": {
+    "@artemiy/oxfmt-allman": ["@artemiy/oxfmt-allman@0.62.0", "https://gitlab.kiviuly.ru/api/v4/projects/40/packages/npm/@artemiy/oxfmt-allman/-/@artemiy/oxfmt-allman-0.62.0.tgz", { "bin": { "oxfmt": "bin/oxfmt.js" } }, "sha1-SjJDqBo0AcOSGMYJzbWSmWTz9n0="],
+
     "@babel/runtime": ["@babel/runtime@7.29.7", "", {}, "sha512-Nq8OhGWiZIZGV6hLHoyAKLLcJihP/xFeBMGJoUrxTX2psI8dCifzLhZISFb+VWS3wFMRDmCGw5R+dOySCqPLhw=="],
 
     "@base-ui-components/react": ["@base-ui-components/react@1.0.0-rc.0", "", { "dependencies": { "@babel/runtime": "^7.28.4", "@base-ui-components/utils": "0.2.2", "@floating-ui/react-dom": "^2.1.6", "@floating-ui/utils": "^0.2.10", "reselect": "^5.1.1", "tabbable": "^6.3.0", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-9lhUFbJcbXvc9KulLev1WTFxS/alJRBWDH/ibKSQaNvmDwMFS2gKp1sTeeldYSfKuS/KC1w2MZutc0wHu2hRHQ=="],
