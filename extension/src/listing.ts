@@ -16,18 +16,37 @@
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
 export interface ListingMatch {
-  /** Стабильный ключ строки листинга. */
+  /** Стабильный ключ строки листинга — `data-id` матча на сайте. */
   id: string;
   team1: string;
   team2: string;
+  /** `data-raw_id` команд: переживает переименования вроде «RUSTEC» → «ex-RUSTEC». */
+  teamId1: string | null;
+  teamId2: string | null;
   odds1: number | null;
   odds2: number | null;
+  /**
+   * Доля ставок публики на каждую команду, в процентах.
+   * Сайт показывает её сам — и это прямое измерение «народной команды»,
+   * которое у меня до сих пор было только качественным признаком в фильтрах.
+   */
+  publicPct1: number | null;
+  publicPct2: number | null;
   tournament: string | null;
   /** BO1 / BO3 / BO5 */
   format: string | null;
   /** Сколько миллисекунд до старта; null — не удалось разобрать. */
   startsInMs: number | null;
-  live: boolean;
+  /** Абсолютное время старта, как его отдаёт сайт. */
+  startsAt: string | null;
+  /**
+   * У матча **доступны** live-ставки — красная точка в интерфейсе.
+   *
+   * ⚠️ Это НЕ «матч идёт». Блок `#upcoming` по определению содержит только
+   * предстоящие матчи. Я один раз перепутал и отфильтровал по этому флагу —
+   * из анализа молча выпали главные случаи дня.
+   */
+  liveBetting: boolean;
 }
 
 export interface Asymmetry {
@@ -46,6 +65,76 @@ export interface Asymmetry {
   tiredFairP: number | null;
   /** 0..1 — насколько случай интересен. Для сортировки. */
   severity: number;
+}
+
+// ── Разбор листинга ───────────────────────────────────────────────────────────
+const stripTags = (s = ''): string => s.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+
+/** Таймер сайта: `00:55:43` либо `1д 00:45:15`. */
+export function parseCountdown(text: string): number | null {
+  const m = /(?:(\d+)\s*д\s*)?(\d{1,2}):(\d{2}):(\d{2})/.exec(text);
+  if (!m) return null;
+  const [, d, hh, mm, ss] = m;
+  return ((Number(d ?? 0) * 24 + Number(hh)) * 3600 + Number(mm) * 60 + Number(ss)) * 1000;
+}
+
+/**
+ * Разбирает блок `#upcoming` целиком.
+ *
+ * Приятная особенность разметки: слайдер держит **все страницы в DOM сразу**,
+ * а не подгружает их по клику. Значит один заход снимает весь листинг —
+ * и никаких дополнительных запросов к сайту делать не нужно вообще.
+ */
+export function parseListingHtml(html: string): ListingMatch[] {
+  const out: ListingMatch[] = [];
+
+  // Режем по началу карточки матча: вложенных `.event` внутри не бывает.
+  for (const block of html.split(/<div class="event\s/).slice(1)) {
+    const cls = /^([^"]*)"/.exec(block)?.[1] ?? '';
+    const id = /data-id="(\d+)"/.exec(block)?.[1];
+    if (!id) continue;
+
+    const sides: { raw: string; teamId: string | null; inner: string }[] = [];
+    const sideRe = /<a[^>]*data-raw_id="(\d+)"[^>]*class="(left|right)[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
+    for (let m: RegExpExecArray | null; (m = sideRe.exec(block)); ) {
+      sides.push({ raw: m[2]!, teamId: m[1] ?? null, inner: m[3] ?? '' });
+    }
+    const left = sides.find((s) => s.raw === 'left');
+    const right = sides.find((s) => s.raw === 'right');
+    if (!left || !right) continue;
+
+    const nameOf = (inner: string) => stripTags(/<span class="team_name">([\s\S]*?)<\/span>/.exec(inner)?.[1] ?? '');
+    const oddsOf = (inner: string) => {
+      const v = /<span class="sum[^"]*">\s*([\d.]+)\s*<\/span>/.exec(inner)?.[1];
+      return v ? parseFloat(v) : null;
+    };
+    const pctOf = (inner: string) => {
+      const v = /<span class="percent_sum">\s*(\d+)/.exec(inner)?.[1];
+      return v ? Number(v) : null;
+    };
+
+    const center = /<div class="center">([\s\S]*?)<\/div>/.exec(block)?.[1] ?? '';
+    const timerTag = /<span class="timer[^"]*"[^>]*>([\s\S]*?)<\/span>/.exec(center)?.[0] ?? '';
+
+    out.push({
+      id,
+      team1: nameOf(left.inner),
+      team2: nameOf(right.inner),
+      teamId1: left.teamId,
+      teamId2: right.teamId,
+      odds1: oddsOf(left.inner),
+      odds2: oddsOf(right.inner),
+      publicPct1: pctOf(left.inner),
+      publicPct2: pctOf(right.inner),
+      tournament: stripTags(/<span class="event_name">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
+      format: stripTags(/<span class="event_type">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
+      startsInMs: parseCountdown(stripTags(timerTag)),
+      startsAt: /data-start="([^"]*)"/.exec(timerTag)?.[1] ?? null,
+      liveBetting: /\blive_betting_upcoming\b/.test(cls),
+    });
+  }
+
+  return out;
 }
 
 /** Типичная длительность серии. BO3 идёт 2–3.5 часа, берём середину. */
@@ -106,16 +195,36 @@ function restBefore(load: TeamLoad | undefined, beforeMs: number): number {
 const imp = (o: number | null): number | null => (o && o > 0 ? 1 / o : null);
 
 /** Очищенная от маржи вероятность первой команды. */
-function fairP1(m: ListingMatch): number | null {
+export function fairP1(m: ListingMatch): number | null {
   const a = imp(m.odds1);
   const b = imp(m.odds2);
   if (a == null || b == null) return null;
   return a / (a + b);
 }
 
+/**
+ * Насколько публика расходится с линией, в процентных пунктах.
+ * Положительное значение — публика грузит первую команду сильнее, чем даёт линия.
+ *
+ * Что это вообще такое. Сайт показывает долю ставок на каждую команду, и это
+ * **не пересчитанный кэф**: честная вероятность алгебраически равна `o2/(o1+o2)`,
+ * так что при выводе из цены отклонение было бы нулевым везде. На живом листинге
+ * из 43 матчей оно доходит до 7.5 п.п., а в среднем составляет 1.85 п.п.
+ *
+ * В отклонениях виден систематический перекос: публика **перегружает тяжёлых
+ * фаворитов** сверх их честной вероятности на 3–4 п.п. Это классическое смещение
+ * «фаворит–аутсайдер», и оно превращает качественный признак «народная команда»
+ * из моих фильтров в измеримую величину.
+ */
+export function publicBias(m: ListingMatch): number | null {
+  const fair = fairP1(m);
+  if (fair == null || m.publicPct1 == null) return null;
+  return m.publicPct1 - fair * 100;
+}
+
 export interface AsymmetryOptions {
-  /** Минимальная разница в числе предыдущих матчей, чтобы считать график перекошенным. */
-  minLoadGap?: number;
+  /** Разница в числе матчей, достаточная сама по себе даже если оба уже играли. */
+  bigLoadGap?: number;
   /** Отдых, выше которого усталость перестаёт считаться существенной. */
   maxRestMs?: number;
 }
@@ -123,23 +232,33 @@ export interface AsymmetryOptions {
 /**
  * Находит матчи, где одна команда выходит уставшей против заметно более свежей.
  *
- * Симметричные случаи (оба играют по второму разу, круговой турнир) отбрасываются:
- * там нет преимущества ни у кого.
+ * Тезис работает **только на асимметрии**. Поэтому случай засчитывается, если либо
+ * соперник совсем свежий, либо разрыв в загрузке большой.
+ *
+ * ⚠️ Почему одной разницы в один матч мало. В круговом турнире (Urban Riga) команды
+ * играют друг с другом подряд, и у одной легко оказывается на матч больше, чем у другой.
+ * Но там перемалывает всех, и лишняя игра не даёт сопернику свежести — она даёт
+ * только рост дисперсии. Первая версия отмечала такое как перекос, и это было неверно.
  */
 export function findAsymmetries(
   matches: ListingMatch[],
   opts: AsymmetryOptions = {},
 ): Asymmetry[] {
-  const { minLoadGap = 1, maxRestMs = 4 * 60 * 60_000 } = opts;
+  const { bigLoadGap = 2, maxRestMs = 4 * 60 * 60_000 } = opts;
   const loads = teamLoads(matches);
   const out: Asymmetry[] = [];
 
   for (const m of matches) {
-    if (m.startsInMs == null || m.live) continue;
+    if (m.startsInMs == null) continue;
 
     const prior1 = priorCount(loads.get(m.team1), m.startsInMs);
     const prior2 = priorCount(loads.get(m.team2), m.startsInMs);
-    if (Math.abs(prior1 - prior2) < minLoadGap) continue; // симметрично — пропускаем
+    const gap = Math.abs(prior1 - prior2);
+    const freshIsRested = Math.min(prior1, prior2) === 0;
+
+    // Настоящая асимметрия: либо соперник вообще не играл, либо разрыв большой.
+    if (gap === 0) continue;
+    if (!freshIsRested && gap < bigLoadGap) continue;
 
     const tiredIsFirst = prior1 > prior2;
     const tired = tiredIsFirst ? m.team1 : m.team2;
@@ -194,7 +313,7 @@ export function buildListingBrief(matches: ListingMatch[]): string {
   L.push('| Матч | Турнир | Формат | До старта |', '|---|---|:-:|:-:|');
   for (const m of [...matches].sort((a, b) => (a.startsInMs ?? 0) - (b.startsInMs ?? 0))) {
     L.push(`| ${m.team1} vs ${m.team2} | ${m.tournament ?? '?'} | ${m.format ?? '?'} | ` +
-           `${m.live ? 'LIVE' : formatDuration(m.startsInMs ?? NaN)} |`);
+           `${formatDuration(m.startsInMs ?? NaN)} |`);
   }
   L.push('');
 
@@ -213,3 +332,4 @@ export function buildListingBrief(matches: ListingMatch[]): string {
 
   return L.join('\n');
 }
+

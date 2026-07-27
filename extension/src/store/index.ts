@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { chromeStorage, syncAcrossContexts } from '../lib/chrome-storage';
 import { DEFAULT_UNIT, EDGE_FLOOR, type Match } from '../engine';
+import type { ListingMatch } from '../listing';
 
 const KEY = 'lp-store';
 
@@ -29,10 +30,15 @@ export interface StoreState
   /** Моя оценка вероятности по ключу оффера: `${match}|${type}` -> 0..1 */
   estimates: Record<string, number>;
 
+  /** Весь листинг матчей. Нужен для анализа расписания — из одного матча его не видно. */
+  listing: ListingMatch[];
+  listingAt: number | null;
+
   setSettings: (patch: Partial<Settings>) => void;
   setCurrent: (match: Match | null) => void;
   setEstimate: (key: string, p: number | null) => void;
   clearEstimates: () => void;
+  setListing: (matches: ListingMatch[]) => void;
 }
 
 const DEFAULT_SETTINGS: Settings =
@@ -55,6 +61,8 @@ export const useStore = create<StoreState>()(
       current: null,
       capturedAt: null,
       estimates: {},
+      listing: [],
+      listingAt: null,
 
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       setCurrent: (match) => set({ current: match, capturedAt: match ? Date.now() : null }),
@@ -67,13 +75,20 @@ export const useStore = create<StoreState>()(
           return { estimates: next };
         }),
       clearEstimates: () => set({ estimates: {} }),
+      setListing: (matches) => set({ listing: matches, listingAt: Date.now() }),
     }),
     {
       name: KEY,
       storage: createJSONStorage(() => chromeStorage),
       // Оценки не переживают перезагрузку намеренно: они относятся к конкретной
       // линии в конкретный момент, а кэфы к следующему разу уже уедут.
-      partialize: (s) => ({ settings: s.settings, current: s.current, capturedAt: s.capturedAt }),
+      partialize: (s) => ({
+        settings: s.settings,
+        current: s.current,
+        capturedAt: s.capturedAt,
+        listing: s.listing,
+        listingAt: s.listingAt,
+      }),
     },
   ),
 );
@@ -92,3 +107,4 @@ export const estimateKey = (match: Match | null, offerType: string): string =>
   `${match?.tournament ?? '?'}|${Object.values(match?.teams ?? {})
     .map((t) => t.name)
     .join('-')}|${offerType}`;
+

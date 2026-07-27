@@ -2,6 +2,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { Match } from '../engine';
 import { OVERLAY_CSS } from '../generated/overlay-css';
 import { mergeSides } from '../engine';
+import { parseListingHtml } from '../listing';
 import { captureMatch, findModal, matchFingerprint, observeDom, signature } from '../lib/modal';
 import { initStoreSync, useStore } from '../store';
 import { clearBadges, paintBadges } from './badges';
@@ -235,9 +236,36 @@ async function capture(bothSides: boolean): Promise<void>
   }
 }
 
+// ── Сбор листинга ─────────────────────────────────────────────────────────────
+/**
+ * Снимает весь список матчей со страницы.
+ *
+ * Дефект расписания — единственное преимущество, которое пока работает, — существует
+ * только в сравнении строк листинга между собой. Из модалки его не видно никогда.
+ *
+ * Слайдер держит **все страницы в DOM сразу**, поэтому листать ничего не надо:
+ * один проход читает всё, и дополнительных запросов к сайту не возникает вообще.
+ */
+let lastListingSig = '';
+
+function harvestListing(): void
+{
+  const root = document.querySelector('#upcoming');
+  if (!root) return;
+
+  const html = root.innerHTML;
+  const sig = `${html.length}`;
+  if (sig === lastListingSig) return; // ничего не поменялось
+  lastListingSig = sig;
+
+  const matches = parseListingHtml(html);
+  if (matches.length) useStore.getState().setListing(matches);
+}
+
 // ── Наблюдение ────────────────────────────────────────────────────────────────
 function onDomChange(): void
 {
+  harvestListing();
   if (capturing) return;
 
   const sig = signature();

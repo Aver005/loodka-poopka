@@ -15,6 +15,7 @@ import {
 } from '../engine';
 import { buildBrief } from '../lib/brief';
 import { estimateKey, useStore } from '../store';
+import { Schedule } from './Schedule';
 import {
   Badge,
   Button,
@@ -45,13 +46,15 @@ export function App()
 
   if (!current || !result)
   {
+    // Матч не открыт — но анализ расписания доступен всегда, он строится по листингу.
     return (
       <Shell>
         <Card>
-          <CardBody className="py-6 text-center text-xs text-muted-foreground">
-            Открой матч на сайте — расчёт появится здесь автоматически.
+          <CardBody className="py-4 text-center text-xs text-muted-foreground">
+            Открой матч на сайте — расчёт по нему появится здесь автоматически.
           </CardBody>
         </Card>
+        <Schedule />
       </Shell>
     );
   }
@@ -272,6 +275,8 @@ export function App()
         </Card>
       )}
 
+      <Schedule />
+
       <Button onClick={copyBrief} className="w-full">
         {copied ? '✓ Скопировано' : 'Скопировать бриф для Claude'}
       </Button>
@@ -344,3 +349,5 @@ const Row = ({ label, value }: { label: string; value: string }) => (
     <Td className="text-right font-medium">{value}</Td>
   </tr>
 );
+
+
