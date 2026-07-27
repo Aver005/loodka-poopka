@@ -151,6 +151,20 @@ const durationOf = (format: string | null): number =>
 /** Матчи считаем «того же дня», если они в пределах этого окна. */
 const SAME_DAY_MS = 14 * 60 * 60_000;
 
+/**
+ * Таймер досчитал до нуля — матч уже начался или закончился.
+ *
+ * Сайт держит такие строки в блоке предстоящих, пока не уберёт их сам, и отличить
+ * «стартует прямо сейчас» от «шёл три часа назад» по обратному отсчёту нельзя.
+ * Для анализа расписания это одно и то же: ставить туда уже нечего.
+ */
+export const hasStarted = (m: ListingMatch): boolean =>
+  m.startsInMs == null || m.startsInMs < 60_000;
+
+/** Только те матчи, на которые ещё можно поставить. */
+export const upcomingOnly = (matches: ListingMatch[]): ListingMatch[] =>
+  matches.filter((m) => !hasStarted(m));
+
 // ── Загрузка команд ───────────────────────────────────────────────────────────
 export interface TeamLoad {
   team: string;
@@ -249,10 +263,13 @@ export function findAsymmetries(
   const out: Asymmetry[] = [];
 
   for (const m of matches) {
-    if (m.startsInMs == null) continue;
+    // Начавшиеся матчи пропускаем: ставить туда нечего, а в подсчёт нагрузки
+    // соперников они при этом входят — именно они и создают усталость.
+    if (hasStarted(m)) continue;
+    const startsAt = m.startsInMs!; // hasStarted уже отсеял null
 
-    const prior1 = priorCount(loads.get(m.team1), m.startsInMs);
-    const prior2 = priorCount(loads.get(m.team2), m.startsInMs);
+    const prior1 = priorCount(loads.get(m.team1), startsAt);
+    const prior2 = priorCount(loads.get(m.team2), startsAt);
     const gap = Math.abs(prior1 - prior2);
     const freshIsRested = Math.min(prior1, prior2) === 0;
 
@@ -264,7 +281,7 @@ export function findAsymmetries(
     const tired = tiredIsFirst ? m.team1 : m.team2;
     const fresh = tiredIsFirst ? m.team2 : m.team1;
     const priorMatches = Math.max(prior1, prior2);
-    const rest = restBefore(loads.get(tired), m.startsInMs);
+    const rest = restBefore(loads.get(tired), startsAt);
     if (rest > maxRestMs) continue; // успел отдохнуть — тезиса нет
 
     const p1 = fairP1(m);
@@ -332,4 +349,6 @@ export function buildListingBrief(matches: ListingMatch[]): string {
 
   return L.join('\n');
 }
+
+
 
