@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { chromeStorage, syncAcrossContexts } from '../lib/chrome-storage';
 import { DEFAULT_UNIT, EDGE_FLOOR, type Match } from '../engine';
-import type { ListingMatch } from '../listing';
+import { mergeListings, type ListingMatch } from '../listing';
 
 const KEY = 'lp-store';
 
@@ -20,6 +20,35 @@ export interface Settings
   autoBothSides: boolean;
 }
 
+/**
+ * Команда контент-скрипту от панели.
+ *
+ * Панель живёт в отдельном контексте и до DOM сайта не достаёт. Ходить через
+ * `chrome.tabs.sendMessage` тут не нужно: стор уже синхронизируется между контекстами
+ * через `chrome.storage`, и он же назван мостом между оверлеем и панелью.
+ * Лишних разрешений в манифесте это не требует.
+ */
+export type ListingAction =
+  /** Пролистать все страницы слайдера и собрать всё, что найдётся. */
+  | 'collect-all'
+  /** Перечитать текущее состояние DOM, не листая. */
+  | 'refresh';
+
+export interface ListingCommand
+{
+  action: ListingAction;
+  /** Метка времени — она же признак «команда новая». */
+  at: number;
+}
+
+/** Прогресс обхода страниц. `null` — обход не идёт. */
+export interface ListingScan
+{
+  page: number;
+  pages: number;
+  found: number;
+}
+
 export interface StoreState
 {
   settings: Settings;
@@ -33,12 +62,19 @@ export interface StoreState
   /** Весь листинг матчей. Нужен для анализа расписания — из одного матча его не видно. */
   listing: ListingMatch[];
   listingAt: number | null;
+  listingCommand: ListingCommand | null;
+  listingScan: ListingScan | null;
 
   setSettings: (patch: Partial<Settings>) => void;
   setCurrent: (match: Match | null) => void;
   setEstimate: (key: string, p: number | null) => void;
   clearEstimates: () => void;
-  setListing: (matches: ListingMatch[]) => void;
+  /** Домешивает найденное к уже собранному. Неполный снимок больше не затирает полный. */
+  mergeListing: (matches: ListingMatch[]) => void;
+  clearListing: () => void;
+  requestListing: (action: ListingAction) => void;
+  ackListing: () => void;
+  setListingScan: (scan: ListingScan | null) => void;
 }
 
 const DEFAULT_SETTINGS: Settings =
@@ -63,6 +99,8 @@ export const useStore = create<StoreState>()(
       estimates: {},
       listing: [],
       listingAt: null,
+      listingCommand: null,
+      listingScan: null,
 
       setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
       setCurrent: (match) => set({ current: match, capturedAt: match ? Date.now() : null }),
@@ -75,7 +113,13 @@ export const useStore = create<StoreState>()(
           return { estimates: next };
         }),
       clearEstimates: () => set({ estimates: {} }),
-      setListing: (matches) => set({ listing: matches, listingAt: Date.now() }),
+
+      mergeListing: (matches) =>
+        set((s) => ({ listing: mergeListings(s.listing, matches), listingAt: Date.now() })),
+      clearListing: () => set({ listing: [], listingAt: null, listingScan: null }),
+      requestListing: (action) => set({ listingCommand: { action, at: Date.now() } }),
+      ackListing: () => set({ listingCommand: null }),
+      setListingScan: (scan) => set({ listingScan: scan }),
     }),
     {
       name: KEY,
@@ -88,6 +132,10 @@ export const useStore = create<StoreState>()(
         capturedAt: s.capturedAt,
         listing: s.listing,
         listingAt: s.listingAt,
+        // Команда и прогресс обхода — тоже через хранилище: это единственный канал
+        // между панелью и контент-скриптом.
+        listingCommand: s.listingCommand,
+        listingScan: s.listingScan,
       }),
     },
   ),

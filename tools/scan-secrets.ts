@@ -322,8 +322,14 @@ const all = argv.includes('--all');
 const ignoreRe = loadIgnore().map(globToRe);
 const rules = [...RULES, ...loadLocalRules()];
 
+// `--others --exclude-standard` добавляет НОВЫЕ файлы, которых ещё нет в индексе.
+// Без них проверка врала обнадёживающе: только что созданный дамп страницы в ней
+// не участвовал, а «проверено N файлов, чисто» выглядело как разрешение коммитить.
+// Правила .gitignore при этом соблюдаются — сырые дампы в input/ так и не читаются.
 const files = (
-  all ? lines(git('ls-files')) : lines(git('diff', '--cached', '--name-only', '--diff-filter=ACMR'))
+  all
+    ? lines(git('ls-files', '--cached', '--others', '--exclude-standard'))
+    : lines(git('diff', '--cached', '--name-only', '--diff-filter=ACMR'))
 )
   .filter((f) => !SELF.includes(f))
   .filter((f) => !ignoreRe.some((re) => re.test(f)));

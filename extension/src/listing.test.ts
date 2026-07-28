@@ -8,8 +8,8 @@
 
 import { describe, expect, test } from 'bun:test';
 import {
-  buildListingBrief, fairP1, findAsymmetries, formatDuration, parseCountdown,
-  parseListingHtml, publicBias, teamLoads,
+  buildListingBrief, fairP1, findAsymmetries, formatDuration, LISTING_CONTAINERS,
+  mergeListings, parseCountdown, parseListingHtml, publicBias, sortByStart, teamLoads,
   type ListingMatch,
 } from './listing';
 
@@ -68,7 +68,90 @@ describe('разбор листинга', () => {
   test('разбирает таймер с днями и без', () => {
     expect(parseCountdown('00:55:43')).toBe((55 * 60 + 43) * 1000);
     expect(parseCountdown('1д 00:45:15')).toBe((24 * 3600 + 45 * 60 + 15) * 1000);
-    expect(parseCountdown('скоро')).toBeNull();
+    expect(parseCountdown('какая-то ерунда')).toBeNull();
+  });
+
+  test('«Скоро начнется» — это ноль, а не неизвестность', () => {
+    // Раньше отдавалось null, и матч выпадал из `teamLoads`, то есть перестрадал
+    // создавать усталость сопернику. Ноль означает «уже начинается»: ставить нечего,
+    // но как предыдущая игра команды он учитывается.
+    expect(parseCountdown('Скоро начнется')).toBe(0);
+    expect(parseCountdown('скоро начинается')).toBe(0);
+  });
+});
+
+describe('два блока с матчами на странице', () => {
+  // Сбор читал только #upcoming и терял блок «ТЕКУЩИЕ МАТЧИ» целиком —
+  // а это матчи на старте, самая срочная часть листинга.
+  const twoBlocks = () =>
+    Bun.file(new URL('./__fixtures__/listing-two-blocks.html', import.meta.url)).text();
+
+  test('перечисляет оба контейнера и текущие идут первыми', () => {
+    expect(LISTING_CONTAINERS).toEqual(['#current_matches_block', '#upcoming']);
+  });
+
+  test('читает матчи из обоих блоков', async () => {
+    const ms = parseListingHtml(await twoBlocks());
+    // 33 из четырёх страниц #upcoming + 2 из блока текущих.
+    expect(ms.length).toBe(35);
+    expect(ms.find((m) => m.team1 === 'Imperial Esports')?.team2).toBe('BESTIA');
+    expect(ms.find((m) => m.team1 === 'LAG Gaming')?.team2).toBe('Marsborne');
+  });
+
+  test('матч из блока текущих не теряет времени старта', async () => {
+    const ms = parseListingHtml(await twoBlocks());
+    const m = ms.find((x) => x.team1 === 'Imperial Esports')!;
+    expect(m.startsInMs).toBe((42 * 60 + 44) * 1000);
+  });
+
+  test('завершённые матчи в разбор не попадают', async () => {
+    // У них класс начинается с `finished_event`, поэтому сплит их не видит.
+    const ms = parseListingHtml(
+      '<div class="finished_event event won_1 csgo_event" data-id="1">' +
+        '<a data-raw_id="1" class="left"><span class="team_name">A</span></a>' +
+        '<a data-raw_id="2" class="right"><span class="team_name">B</span></a></div>' +
+        (await twoBlocks()),
+    );
+    expect(ms.length).toBe(35);
+  });
+});
+
+describe('порядок и слияние', () => {
+  test('матч с нечитаемым таймером уходит в конец, а не в начало', () => {
+    // Наивное `(a.startsInMs ?? 0) - (b.startsInMs ?? 0)` ставило его первым,
+    // впереди матча, до которого 40 минут. Отсюда и «листинг не в том порядке».
+    const ms = [
+      match({ team1: 'C', team2: 'D', startsInMs: null }),
+      match({ team1: 'E', team2: 'F', startsInMs: 3 * H }),
+      match({ team1: 'A', team2: 'B', startsInMs: 40 * 60_000 }),
+    ];
+    expect(sortByStart(ms).map((m) => m.team1)).toEqual(['A', 'E', 'C']);
+  });
+
+  test('слияние не теряет матчи, которых нет в новом снимке', () => {
+    // Слайдер отдаёт то, что сейчас в DOM. Замена превращала полный сбор в огрызок.
+    const prev = [
+      match({ team1: 'A', team2: 'B', startsInMs: H }),
+      match({ team1: 'C', team2: 'D', startsInMs: 2 * H }),
+    ];
+    const next = [match({ team1: 'E', team2: 'F', startsInMs: 3 * H })];
+    expect(mergeListings(prev, next)).toHaveLength(3);
+  });
+
+  test('свежие данные по тому же матчу выигрывают', () => {
+    const before = match({ id: 'x', team1: 'A', team2: 'B', startsInMs: 2 * H, odds1: 1.5 });
+    const after = { ...before, odds1: 1.9, startsInMs: H };
+    const merged = mergeListings([before], [after]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.odds1).toBe(1.9);
+  });
+
+  test('результат слияния отсортирован по времени старта', () => {
+    const merged = mergeListings(
+      [match({ team1: 'late', team2: 'x', startsInMs: 5 * H })],
+      [match({ team1: 'soon', team2: 'y', startsInMs: H })],
+    );
+    expect(merged.map((m) => m.team1)).toEqual(['soon', 'late']);
   });
 });
 

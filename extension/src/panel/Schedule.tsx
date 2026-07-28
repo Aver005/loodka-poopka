@@ -1,13 +1,112 @@
 import { useMemo, useState } from 'react';
 import {
-  buildListingBrief, fairP1, findAsymmetries, formatDuration, publicBias,
-  type ListingMatch,
+  buildListingBrief, fairP1, findAsymmetries, formatDuration, hasStarted, publicBias,
+  sortByStart, type ListingMatch,
 } from '../listing';
 import { useStore } from '../store';
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Table, Td, Th, Tooltip } from './ui';
 
 const pct = (x: number | null | undefined, d = 0) =>
   x == null || !isFinite(x) ? '—' : `${(x * 100).toFixed(d)}%`;
+
+/**
+ * Управление сбором.
+ *
+ * Раньше листинг обновлялся исключительно сам, по мутациям DOM, и «переснять» его
+ * из интерфейса было нельзя вообще — приходилось руками чистить хранилище расширения.
+ * Отсюда три явных действия.
+ */
+function Controls() {
+  const listing = useStore((s) => s.listing);
+  const scan = useStore((s) => s.listingScan);
+  const requestListing = useStore((s) => s.requestListing);
+  const clearListing = useStore((s) => s.clearListing);
+
+  if (scan) {
+    return (
+      <Card>
+        <CardBody className="py-2 text-center text-[11px] text-muted-foreground">
+          Листаю страницы: <b>{scan.page}</b> из {scan.pages} · найдено{' '}
+          <b className="text-foreground">{scan.found}</b>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="flex gap-1.5">
+      <Tooltip content="Пролистает все страницы слайдера и соберёт всё, что найдётся. Клик по пагинации — локальный сдвиг, запросов к сайту не делает.">
+        <Button onClick={() => requestListing('collect-all')} className="flex-1">
+          Собрать все страницы
+        </Button>
+      </Tooltip>
+      <Tooltip content="Перечитать то, что сейчас в DOM, не листая.">
+        <Button variant="outline" onClick={() => requestListing('refresh')}>
+          Обновить
+        </Button>
+      </Tooltip>
+      <Tooltip content="Выбросить собранное. Нужно, когда в списке остались матчи прошлого дня.">
+        <Button variant="ghost" onClick={clearListing} disabled={!listing.length}>
+          Очистить
+        </Button>
+      </Tooltip>
+    </div>
+  );
+}
+
+/**
+ * Полный список собранного.
+ *
+ * Нужен ровно для одного: чтобы было видно, что именно прочитано. Пока в панели
+ * показывались только выводы (перекос, деньги публики), проверить полноту сбора
+ * было невозможно — а он терял целый блок страницы и об этом не сообщал.
+ */
+function AllMatches({ listing }: { listing: ListingMatch[] }) {
+  const [open, setOpen] = useState(false);
+  const sorted = useMemo(() => sortByStart(listing), [listing]);
+  const started = sorted.filter(hasStarted).length;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Все матчи</CardTitle>
+        <Badge tone="muted" className="ml-auto">{listing.length}</Badge>
+        <Button variant="ghost" size="sm" onClick={() => setOpen((v) => !v)}>
+          {open ? 'скрыть' : 'показать'}
+        </Button>
+      </CardHeader>
+      {open && (
+        <CardBody className="px-0 py-0">
+          <Table>
+            <tbody>
+              {sorted.map((m) => (
+                <tr key={m.id} className={hasStarted(m) ? 'opacity-45' : ''}>
+                  <Td className="max-w-41.25 text-[11px] leading-tight">
+                    {m.team1} <span className="text-muted-foreground">vs</span> {m.team2}
+                    <div className="text-[10px] text-muted-foreground">
+                      {m.tournament ?? '—'} · {m.format ?? '—'}
+                    </div>
+                  </Td>
+                  <Td className="whitespace-nowrap text-right text-[10px]">
+                    {m.startsInMs == null
+                      ? <span className="text-muted-foreground">таймер не разобран</span>
+                      : formatDuration(m.startsInMs)}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+          {started > 0 && (
+            <p className="px-3 py-2 text-[10px] leading-snug text-muted-foreground">
+              Бледным — {started} матч(ей), которые уже начались. В анализ они не идут,
+              но в подсчёт нагрузки команд входят: именно они и создают усталость.
+            </p>
+          )}
+        </CardBody>
+      )}
+    </Card>
+  );
+}
 
 /**
  * Анализ всего листинга.
@@ -31,13 +130,19 @@ export function Schedule() {
     [listing],
   );
 
+  // Кнопки показываем и на пустом состоянии: раньше тут был ранний выход,
+  // и «собрать» нажать было нечем именно тогда, когда это нужнее всего.
   if (!listing.length) {
     return (
-      <Card>
-        <CardBody className="py-5 text-center text-xs text-muted-foreground">
-          Листинг не найден. Открой страницу со списком матчей — он соберётся сам.
-        </CardBody>
-      </Card>
+      <>
+        <Card>
+          <CardBody className="py-5 text-center text-xs text-muted-foreground">
+            Листинг пуст. Открой страницу со списком матчей — он соберётся сам,
+            либо нажми «Собрать все страницы».
+          </CardBody>
+        </Card>
+        <Controls />
+      </>
     );
   }
 
@@ -79,7 +184,7 @@ export function Schedule() {
               <tbody>
                 {asym.map((a) => (
                   <tr key={a.match.id}>
-                    <Td className="max-w-[150px] leading-tight">
+                    <Td className="max-w-37.5 leading-tight">
                       <div className="text-[11px]">
                         <span className={a.tired === a.match.team1 ? 'font-semibold text-warn' : ''}>
                           {a.match.team1}
@@ -127,7 +232,7 @@ export function Schedule() {
               <tbody>
                 {biased.map(({ m, bias }) => (
                   <tr key={m.id}>
-                    <Td className="max-w-[170px] text-[11px] leading-tight">
+                    <Td className="max-w-42.5 text-[11px] leading-tight">
                       {m.team1} <span className="text-muted-foreground">vs</span> {m.team2}
                     </Td>
                     <Td className="text-right text-[10px] text-muted-foreground">
@@ -150,6 +255,9 @@ export function Schedule() {
           </CardBody>
         </Card>
       )}
+
+      <AllMatches listing={listing} />
+      <Controls />
 
       <Button onClick={copyBrief} variant="outline" className="w-full">
         {copied ? '✓ Скопировано' : 'Скопировать листинг для Claude (без кэфов)'}
