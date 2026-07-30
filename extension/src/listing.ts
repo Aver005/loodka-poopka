@@ -363,9 +363,12 @@ export function findAsymmetries(
 export function formatDuration(ms: number): string {
   if (!isFinite(ms)) return '—';
   const sign = ms < 0 ? '−' : '';
-  const abs = Math.abs(ms);
-  const h = Math.floor(abs / 3_600_000);
-  const min = Math.round((abs % 3_600_000) / 60_000);
+  // Округляем МИНУТЫ ЦЕЛИКОМ, а потом делим на часы.
+  // Раньше часы брались через floor, а минуты округлялись отдельно — и остаток
+  // в 59.7 минуты давал «2 ч 60 мин» вместо «3 ч 0 мин».
+  const totalMin = Math.round(Math.abs(ms) / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const min = totalMin % 60;
   return h ? `${sign}${h} ч ${min} мин` : `${sign}${min} мин`;
 }
 

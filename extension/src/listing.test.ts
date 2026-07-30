@@ -316,5 +316,16 @@ describe('формат длительности', () => {
     expect(formatDuration(-30 * 60_000)).toBe('−30 мин');
     expect(formatDuration(Infinity)).toBe('—');
   });
+
+  test('никогда не показывает 60 минут', () => {
+    // Живой баг: в брифе стояло «2 ч 60 мин» вместо «3 ч 0 мин». Часы брались
+    // через floor, минуты округлялись отдельно, и остаток 59.7 мин давал 60.
+    expect(formatDuration(2 * 3_600_000 + 59.7 * 60_000)).toBe('3 ч 0 мин');
+    expect(formatDuration(59.7 * 60_000)).toBe('1 ч 0 мин');
+    expect(formatDuration(2 * 3_600_000 + 59.4 * 60_000)).toBe('2 ч 59 мин');
+    for (let ms = 0; ms < 6 * 3_600_000; ms += 7_000) {
+      expect(formatDuration(ms)).not.toContain('60 мин');
+    }
+  });
 });
 
