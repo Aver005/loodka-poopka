@@ -83,7 +83,7 @@
 | 27.07 | [Black Phoenix vs Misa](matches/2026-07-27-blackphoenix-vs-misa.md) | П2 Misa | 2.787 | 40% | +11.5% | ✅ | +446,75 ₽ |
 | 28.07 | [ex-RUSTEC vs Unity](matches/2026-07-28-exrustec-vs-unity.md) | П2 Unity Esports | 2.194 | 50.9% | +11.7% | ❌ | **−270,00 ₽** |
 | 28.07 | [Butterfly vs Just Players](matches/2026-07-28-butterfly-vs-justplayers.md) | П2 Just Players | 2.050 | 52.0% | +6.6% | ❌ | **−135,00 ₽** |
-| 29.07 | *листинг 58 матчей* | — | — | — | — | 🔴 | **полный пас** |
+| 29.07 | [*листинг 58 матчей*](journal/2026-07-29.md) | — | — | — | — | 🔴 | **полный пас** |
 | 30.07 | [1WIN vs Butterfly](matches/2026-07-30-1win-vs-butterfly.md) | П2 Butterfly | 2.600 | 42.2% | +9.7% | ↩️ | **0 ₽** (аннулирован) |
 
 ---
