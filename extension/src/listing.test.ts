@@ -30,6 +30,7 @@ const match = (p: Partial<ListingMatch> & Pick<ListingMatch, 'team1' | 'team2' |
   tournament: 'CCT EU',
   format: 'BO3',
   startsAt: null,
+  running: false,
   liveBetting: false,
   ...p,
 });
@@ -98,10 +99,36 @@ describe('два блока с матчами на странице', () => {
     expect(ms.find((m) => m.team1 === 'LAG Gaming')?.team2).toBe('Marsborne');
   });
 
-  test('матч из блока текущих не теряет времени старта', async () => {
+  test('у идущего матча таймер считает ВВЕРХ, а не вниз', async () => {
+    // 🐛 Регресс 01.08. Раньше здесь стояло `toBe(+42:44)` — то есть тест закреплял
+    // сам баг. Блок текущих матчей показывает ПРОШЕДШЕЕ время, и Sinners vs INOX,
+    // шедший третий час, попал в бриф как «через 2 ч 51 мин».
+    const m = parseListingHtml(await twoBlocks()).find((x) => x.team1 === 'Imperial Esports')!;
+    expect(m.running).toBe(true);
+    expect(m.startsInMs).toBe(-(42 * 60 + 44) * 1000);
+    expect(m.startsAt).toBe('07/29/2026 00:16:56');
+  });
+
+  test('пре-стартовая строка блока текущих идущей не считается', async () => {
+    // «Скоро начнется» → 0. Это не идущий матч, ставить туда просто нет времени.
+    const m = parseListingHtml(await twoBlocks()).find((x) => x.team1 === 'LAG Gaming')!;
+    expect(m.running).toBe(false);
+    expect(m.startsInMs).toBe(0);
+  });
+
+  test('предстоящие матчи идущими не помечаются', async () => {
+    // Различать по классу таймера нельзя: `timer_active` стоит и на предстоящих,
+    // включая матчи через пять суток. Признак — `full_width_event` у карточки.
     const ms = parseListingHtml(await twoBlocks());
-    const m = ms.find((x) => x.team1 === 'Imperial Esports')!;
-    expect(m.startsInMs).toBe((42 * 60 + 44) * 1000);
+    expect(ms.filter((m) => m.running)).toHaveLength(1);
+    expect(ms.every((m) => !m.running || m.startsInMs! < 0)).toBe(true);
+  });
+
+  test('идущий матч не выглядит в брифе кандидатом на ставку', async () => {
+    // Из-за знака таймера я запросил линию по матчу, который шёл третий час.
+    const brief = buildListingBrief(await twoBlocks().then(parseListingHtml));
+    expect(brief).toContain('| идёт 43 мин |');   // 42:44 округляется до 43
+    expect(brief).not.toContain('| 43 мин |');
   });
 
   test('завершённые матчи в разбор не попадают', async () => {
@@ -245,6 +272,32 @@ describe('поиск асимметрии', () => {
     expect(a.tired).toBe('INOX');
     expect(a.restMs).toBeLessThan(0);        // BO3 длиннее, чем разрыв
     expect(a.tiredIsFavorite).toBe(true);
+  });
+
+  test('идущая серия создаёт усталость в СЛЕДУЮЩЕМ матче, а не в себе самой', () => {
+    // 🐛 Живой случай 01.08. Sinners vs INOX шёл третий час, 1WIN vs INOX стартовал
+    // через 27 минут. Из-за знака таймера детектор увидел ровно наоборот: пометил
+    // уставшей INOX в **уже идущем** матче (отдых −6 мин, ровно как в брифе того дня),
+    // а настоящий перекос в матче с 1WIN не заметил.
+    const list = [
+      match({ team1: 'Sinners', team2: 'INOX', startsInMs: -2.85 * H, running: true }),
+      match({ team1: '1WIN', team2: 'INOX', startsInMs: 0.45 * H, odds1: 2.9, odds2: 1.35 }),
+    ];
+    const found = findAsymmetries(list);
+
+    expect(found).toHaveLength(1);
+    expect(found[0]!.match.team1).toBe('1WIN');
+    expect(found[0]!.tired).toBe('INOX');
+    // Серия ещё идёт, значит её окончание не в прошлом: отдых = старт следующего − «сейчас».
+    expect(found[0]!.restMs).toBeCloseTo(0.45 * H, -3);
+  });
+
+  test('идущий матч сам в кандидаты не попадает', () => {
+    const list = [
+      match({ team1: 'A', team2: 'Sinners', startsInMs: -4 * H, running: true }),
+      match({ team1: 'Sinners', team2: 'B', startsInMs: -1 * H, running: true }),
+    ];
+    expect(findAsymmetries(list)).toHaveLength(0);
   });
 
   test('сортировка ставит самый грубый случай первым', () => {

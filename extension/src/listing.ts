@@ -35,8 +35,27 @@ export interface ListingMatch {
   tournament: string | null;
   /** BO1 / BO3 / BO5 */
   format: string | null;
-  /** Сколько миллисекунд до старта; null — не удалось разобрать. */
+  /**
+   * Сколько миллисекунд до старта; null — не удалось разобрать.
+   *
+   * ⚠️ **Отрицательное значение — матч уже идёт**, и это минус прошедшее время.
+   * См. `running`: у идущих матчей сайт считает таймер ВВЕРХ.
+   */
   startsInMs: number | null;
+  /**
+   * Матч идёт прямо сейчас, `startsInMs` = −(сколько уже играют).
+   *
+   * 🐛 Живой баг 01.08, стоивший фантомного кандидата. Блок «ТЕКУЩИЕ МАТЧИ» показывает
+   * не обратный отсчёт, а **прошедшее** время в том же формате `HH:MM:SS`.
+   * Sinners vs INOX шёл третий час — и попал в бриф как «через 2 ч 51 мин», то есть
+   * с точностью до знака. Хуже того, асимметрия из-за этого **перевернулась**:
+   * детектор счёл уставшей INOX в матче, который на самом деле уже закончился,
+   * и не увидел усталости в следующем.
+   *
+   * Различать по классу таймера нельзя: `timer_active` стоит и на предстоящих.
+   * Признак блока текущих матчей — класс карточки `full_width_event`.
+   */
+  running: boolean;
   /** Абсолютное время старта, как его отдаёт сайт. */
   startsAt: string | null;
   /**
@@ -174,6 +193,13 @@ export function parseListingHtml(html: string): ListingMatch[] {
     const center = /<div class="center">([\s\S]*?)<\/div>/.exec(block)?.[1] ?? '';
     const timerTag = /<span class="timer[^"]*"[^>]*>([\s\S]*?)<\/span>/.exec(center)?.[0] ?? '';
 
+    // Блок «ТЕКУЩИЕ МАТЧИ» размечает карточки во всю ширину, и только он.
+    // В нём таймер считает ВВЕРХ: `02:51:07` значит «играют 2 ч 51 мин», а не
+    // «начнётся через». Пре-стартовые строки этого блока показывают «Скоро начнется»,
+    // то есть ноль, — будущего времени тут не бывает по определению.
+    const timerMs = parseCountdown(stripTags(timerTag));
+    const running = /\bfull_width_event\b/.test(cls) && timerMs != null && timerMs > 0;
+
     out.push({
       id,
       team1: nameOf(left.inner),
@@ -186,7 +212,8 @@ export function parseListingHtml(html: string): ListingMatch[] {
       publicPct2: pctOf(right.inner),
       tournament: stripTags(/<span class="event_name">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
       format: stripTags(/<span class="event_type">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
-      startsInMs: parseCountdown(stripTags(timerTag)),
+      startsInMs: running ? -timerMs! : timerMs,
+      running,
       startsAt: /data-start="([^"]*)"/.exec(timerTag)?.[1] ?? null,
       liveBetting: /\blive_betting_upcoming\b/.test(cls),
     });
@@ -254,13 +281,22 @@ function priorCount(load: TeamLoad | undefined, beforeMs: number): number {
   ).length;
 }
 
-/** Ожидаемый отдых: старт следующего минус предполагаемое окончание предыдущего. */
+/**
+ * Ожидаемый отдых: старт следующего минус предполагаемое окончание предыдущего.
+ *
+ * Для **идущего** матча окончание не может быть в прошлом: мы своими глазами видим,
+ * что он ещё не закончился, поэтому нижняя граница — «сейчас» (0). Средняя длительность
+ * тут перестаёт быть догадкой ровно в той части, которую видно
+ * ([дырка 4](../../FATIGUE.md#4-отдых--это-прогноз-а-не-факт)): серия, идущая третий час,
+ * даёт отдых по факту, а не по табличным 2 ч 30 м.
+ */
 function restBefore(load: TeamLoad | undefined, beforeMs: number): number {
   if (!load) return Infinity;
   const prior = load.matches.filter((m) => m.startsInMs != null && m.startsInMs < beforeMs);
   const last = prior.at(-1);
   if (!last || last.startsInMs == null) return Infinity;
-  return beforeMs - (last.startsInMs + durationOf(last.format));
+  const expectedEnd = last.startsInMs + durationOf(last.format);
+  return beforeMs - (last.running ? Math.max(expectedEnd, 0) : expectedEnd);
 }
 
 // ── Поиск асимметрий ──────────────────────────────────────────────────────────
@@ -390,8 +426,14 @@ export function buildListingBrief(matches: ListingMatch[]): string {
   L.push('## Матчи', '');
   L.push('| Матч | Турнир | Формат | До старта |', '|---|---|:-:|:-:|');
   for (const m of sortByStart(matches)) {
-    L.push(`| ${m.team1} vs ${m.team2} | ${m.tournament ?? '?'} | ${m.format ?? '?'} | ` +
-           `${formatDuration(m.startsInMs ?? NaN)} |`);
+    // Идущий матч обязан выглядеть идущим. Один раз он попал сюда как «через 2 ч 51 мин»
+    // (знак таймера), я запросил по нему линию, и в брифе появился кандидат,
+    // которого не существовало. Отрицательный отсчёт в этой колонке — тоже плохо:
+    // читается как наложение, а не как «уже играют».
+    const when = m.running
+      ? `идёт ${formatDuration(Math.abs(m.startsInMs ?? NaN))}`
+      : formatDuration(m.startsInMs ?? NaN);
+    L.push(`| ${m.team1} vs ${m.team2} | ${m.tournament ?? '?'} | ${m.format ?? '?'} | ${when} |`);
   }
   L.push('');
 

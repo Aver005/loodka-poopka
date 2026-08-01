@@ -90,7 +90,9 @@ function AllMatches({ listing }: { listing: ListingMatch[] }) {
                   <Td className="whitespace-nowrap text-right text-[10px]">
                     {m.startsInMs == null
                       ? <span className="text-muted-foreground">таймер не разобран</span>
-                      : formatDuration(m.startsInMs)}
+                      : m.running
+                        ? <span className="text-muted-foreground">идёт {formatDuration(-m.startsInMs)}</span>
+                        : formatDuration(m.startsInMs)}
                   </Td>
                 </tr>
               ))}
