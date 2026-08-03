@@ -10,7 +10,14 @@ GitLab package registry.
   opening brace back and produce a diff touching the whole file.
 - **Do not** edit or delete `braceStyle` in `.oxfmtrc.json`.
 - **Do not** hand-align braces. Edit the code, then run the formatter and let it place them.
-- The installed binary is called **`oxfmt`**, not `oxfmt-allman`. Run `npx oxfmt`.
+- The installed binary is called **`oxfmt`**, not `oxfmt-allman`.
+- ⚠️ **Do not run `npx oxfmt`.** It resolved to **upstream `oxfmt@0.62.0` from the public npm
+  registry** (`npm warn exec The following package was not found and will be installed`) even
+  with `@artemiy/oxfmt-allman` present in `node_modules`. Upstream is the Node/NAPI hybrid that
+  delegates to Prettier, so it does not silently skip `.html` — it reformatted the
+  `__fixtures__/*.html` snapshots and **16 tests went red**, because the parser binds bets to
+  the nearest `.koef` by distance in text. Use `bun run format` (or
+  `./node_modules/.bin/oxfmt <paths>`) — those resolve the local fork.
 - Config must be **`.oxfmtrc.json`** or `.oxfmtrc.jsonc`. `oxfmt.config.ts` is rejected by this
   build with `JS/TS config file is not supported in pure Rust CLI`.
 
@@ -19,8 +26,8 @@ GitLab package registry.
 Run the formatter on what you changed, then verify:
 
 ```sh
-npx oxfmt src            # formats in place (this is the default, no --write needed)
-npx oxfmt --check .      # exits non-zero if anything is unformatted
+./node_modules/.bin/oxfmt extension/src   # formats in place (default, no --write needed)
+bun run format:check                      # exits non-zero if anything is unformatted
 ```
 
 `--check` exits `1` when something is unformatted and `0` when everything is clean, so it works as

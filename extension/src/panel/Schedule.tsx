@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
-  buildListingBrief, fairP1, findAsymmetries, formatDuration, hasStarted, publicBias,
-  sortByStart, type ListingMatch,
+  buildListingBrief,
+  fairP1,
+  findAsymmetries,
+  formatDuration,
+  hasStarted,
+  publicBias,
+  sortByStart,
+  type ListingMatch,
 } from '../listing';
 import { useStore } from '../store';
 import { Badge, Button, Card, CardBody, CardHeader, CardTitle, Table, Td, Th, Tooltip } from './ui';
@@ -10,19 +16,39 @@ const pct = (x: number | null | undefined, d = 0) =>
   x == null || !isFinite(x) ? '—' : `${(x * 100).toFixed(d)}%`;
 
 /**
+ * Порог показа отклонения публики от линии, в процентных пунктах.
+ *
+ * Число НЕ косметическое: оно обязано совпадать с условием правила из
+ * [PUBLIC-MONEY.md](../../../PUBLIC-MONEY.md) — «перегрев фаворита ≥ 2 п.п.», — иначе
+ * прибор физически не показывает часть наблюдений, которые правило требует.
+ *
+ * Стояло 3 п.п. плюс `.slice(0, 8)`. На первом же заполнении журнала (2026-08-04) лимит
+ * упёрся ровно в 8 строк, последняя — 3.3 п.п., то есть полоса 2–3 п.п. была отрезана
+ * целиком, а по замеру на 35 матчах там лежит примерно столько же наблюдений, сколько
+ * попадало в таблицу. Потеря шла не случайно, а **по величине отклонения**: выборка
+ * смещалась в сторону крупных перегревов и через них — крупных андердогов.
+ *
+ * Лимит строк снят по той же причине: усечение сверху при сортировке по убыванию
+ * выбрасывает именно то, что ближе к порогу.
+ */
+const PUBLIC_BIAS_THRESHOLD = 2;
+
+/**
  * Управление сбором.
  *
  * Раньше листинг обновлялся исключительно сам, по мутациям DOM, и «переснять» его
  * из интерфейса было нельзя вообще — приходилось руками чистить хранилище расширения.
  * Отсюда три явных действия.
  */
-function Controls() {
+function Controls()
+{
   const listing = useStore((s) => s.listing);
   const scan = useStore((s) => s.listingScan);
   const requestListing = useStore((s) => s.requestListing);
   const clearListing = useStore((s) => s.clearListing);
 
-  if (scan) {
+  if (scan)
+  {
     return (
       <Card>
         <CardBody className="py-2 text-center text-[11px] text-muted-foreground">
@@ -61,7 +87,8 @@ function Controls() {
  * показывались только выводы (перекос, деньги публики), проверить полноту сбора
  * было невозможно — а он терял целый блок страницы и об этом не сообщал.
  */
-function AllMatches({ listing }: { listing: ListingMatch[] }) {
+function AllMatches({ listing }: { listing: ListingMatch[] })
+{
   const [open, setOpen] = useState(false);
   const sorted = useMemo(() => sortByStart(listing), [listing]);
   const started = sorted.filter(hasStarted).length;
@@ -70,7 +97,9 @@ function AllMatches({ listing }: { listing: ListingMatch[] }) {
     <Card>
       <CardHeader>
         <CardTitle>Все матчи</CardTitle>
-        <Badge tone="muted" className="ml-auto">{listing.length}</Badge>
+        <Badge tone="muted" className="ml-auto">
+          {listing.length}
+        </Badge>
         <Button variant="ghost" size="sm" onClick={() => setOpen((v) => !v)}>
           {open ? 'скрыть' : 'показать'}
         </Button>
@@ -88,11 +117,15 @@ function AllMatches({ listing }: { listing: ListingMatch[] }) {
                     </div>
                   </Td>
                   <Td className="whitespace-nowrap text-right text-[10px]">
-                    {m.startsInMs == null
-                      ? <span className="text-muted-foreground">таймер не разобран</span>
-                      : m.running
-                        ? <span className="text-muted-foreground">идёт {formatDuration(-m.startsInMs)}</span>
-                        : formatDuration(m.startsInMs)}
+                    {m.startsInMs == null ? (
+                      <span className="text-muted-foreground">таймер не разобран</span>
+                    ) : m.running ? (
+                      <span className="text-muted-foreground">
+                        идёт {formatDuration(-m.startsInMs)}
+                      </span>
+                    ) : (
+                      formatDuration(m.startsInMs)
+                    )}
                   </Td>
                 </tr>
               ))}
@@ -100,8 +133,8 @@ function AllMatches({ listing }: { listing: ListingMatch[] }) {
           </Table>
           {started > 0 && (
             <p className="px-3 py-2 text-[10px] leading-snug text-muted-foreground">
-              Бледным — {started} матч(ей), которые уже начались. В анализ они не идут,
-              но в подсчёт нагрузки команд входят: именно они и создают усталость.
+              Бледным — {started} матч(ей), которые уже начались. В анализ они не идут, но в подсчёт
+              нагрузки команд входят: именно они и создают усталость.
             </p>
           )}
         </CardBody>
@@ -116,7 +149,8 @@ function AllMatches({ listing }: { listing: ListingMatch[] }) {
  * Здесь живёт то, чего принципиально не видно из одного матча: кто выходит на игру
  * уставшим, кого перегружает публика и где линия этого не заметила.
  */
-export function Schedule() {
+export function Schedule()
+{
   const listing = useStore((s) => s.listing);
   const listingAt = useStore((s) => s.listingAt);
   const [copied, setCopied] = useState(false);
@@ -126,21 +160,21 @@ export function Schedule() {
     () =>
       listing
         .map((m) => ({ m, bias: publicBias(m), fair: fairP1(m) }))
-        .filter((x) => x.bias != null && Math.abs(x.bias) >= 3)
-        .sort((a, b) => Math.abs(b.bias!) - Math.abs(a.bias!))
-        .slice(0, 8),
+        .filter((x) => x.bias != null && Math.abs(x.bias) >= PUBLIC_BIAS_THRESHOLD)
+        .sort((a, b) => Math.abs(b.bias!) - Math.abs(a.bias!)),
     [listing],
   );
 
   // Кнопки показываем и на пустом состоянии: раньше тут был ранний выход,
   // и «собрать» нажать было нечем именно тогда, когда это нужнее всего.
-  if (!listing.length) {
+  if (!listing.length)
+  {
     return (
       <>
         <Card>
           <CardBody className="py-5 text-center text-xs text-muted-foreground">
-            Листинг пуст. Открой страницу со списком матчей — он соберётся сам,
-            либо нажми «Собрать все страницы».
+            Листинг пуст. Открой страницу со списком матчей — он соберётся сам, либо нажми «Собрать
+            все страницы».
           </CardBody>
         </Card>
         <Controls />
@@ -148,7 +182,8 @@ export function Schedule() {
     );
   }
 
-  const copyBrief = async () => {
+  const copyBrief = async () =>
+  {
     await navigator.clipboard.writeText(buildListingBrief(listing));
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
@@ -161,7 +196,9 @@ export function Schedule() {
       <Card>
         <CardHeader>
           <CardTitle>Перекос расписания</CardTitle>
-          <Badge tone="muted" className="ml-auto">{listing.length} матчей</Badge>
+          <Badge tone="muted" className="ml-auto">
+            {listing.length} матчей
+          </Badge>
         </CardHeader>
         <CardBody className="px-0 py-0">
           {asym.length === 0 ? (
@@ -188,16 +225,21 @@ export function Schedule() {
                   <tr key={a.match.id}>
                     <Td className="max-w-37.5 leading-tight">
                       <div className="text-[11px]">
-                        <span className={a.tired === a.match.team1 ? 'font-semibold text-warn' : ''}>
+                        <span
+                          className={a.tired === a.match.team1 ? 'font-semibold text-warn' : ''}
+                        >
                           {a.match.team1}
                         </span>
                         <span className="text-muted-foreground"> vs </span>
-                        <span className={a.tired === a.match.team2 ? 'font-semibold text-warn' : ''}>
+                        <span
+                          className={a.tired === a.match.team2 ? 'font-semibold text-warn' : ''}
+                        >
                           {a.match.team2}
                         </span>
                       </div>
                       <div className="text-[10px] text-muted-foreground">
-                        {a.match.tournament} · {a.match.format} · через {formatDuration(a.match.startsInMs ?? NaN)}
+                        {a.match.tournament} · {a.match.format} · через{' '}
+                        {formatDuration(a.match.startsInMs ?? NaN)}
                       </div>
                     </Td>
                     <Td className="text-right">{a.priorMatches}</Td>
@@ -232,27 +274,48 @@ export function Schedule() {
           <CardBody className="px-0 py-0">
             <Table>
               <tbody>
-                {biased.map(({ m, bias }) => (
-                  <tr key={m.id}>
-                    <Td className="max-w-42.5 text-[11px] leading-tight">
-                      {m.team1} <span className="text-muted-foreground">vs</span> {m.team2}
-                    </Td>
-                    <Td className="text-right text-[10px] text-muted-foreground">
-                      {m.publicPct1}/{m.publicPct2}
-                    </Td>
-                    <Td className="text-right">
-                      <Badge tone={Math.abs(bias!) >= 5 ? 'warn' : 'muted'}>
-                        {bias! > 0 ? '+' : ''}{bias!.toFixed(1)}
-                      </Badge>
-                    </Td>
-                  </tr>
-                ))}
+                {biased.map(({ m, bias, fair }) =>
+                {
+                  // Правило требует перегрева ФАВОРИТА, а публика может грузить и андердога —
+                  // тогда величина порог проходит, а условие нет. На первом заполнении журнала
+                  // так отвалилась одна строка из восьми, и различить её в панели было нечем:
+                  // знак приходилось считать руками по каждому матчу.
+                  const overloadedIsFavorite = fair == null ? null : bias! > 0 === fair > 0.5;
+                  return (
+                    <tr key={m.id}>
+                      <Td className="max-w-42.5 text-[11px] leading-tight">
+                        {m.team1} <span className="text-muted-foreground">vs</span> {m.team2}
+                        <div className="text-[10px] text-muted-foreground">
+                          честно {pct(fair, 1)} / {pct(fair == null ? null : 1 - fair, 1)}
+                        </div>
+                      </Td>
+                      <Td className="text-right text-[10px] text-muted-foreground">
+                        {m.publicPct1}/{m.publicPct2}
+                      </Td>
+                      <Td className="text-right">
+                        <Badge tone={Math.abs(bias!) >= 5 ? 'warn' : 'muted'}>
+                          {bias! > 0 ? '+' : ''}
+                          {bias!.toFixed(1)}
+                        </Badge>
+                        {overloadedIsFavorite === false && (
+                          <Tooltip content="Публика грузит андердога, а не фаворита. Величина порог проходит, условие правила — нет: в журнал тезиса 2 такая строка не идёт.">
+                            <Badge tone="muted" className="ml-1">
+                              не фаворит
+                            </Badge>
+                          </Tooltip>
+                        )}
+                      </Td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </Table>
             <p className="px-3 py-2 text-[10px] leading-snug text-muted-foreground">
-              Знак — в сторону <b>первой</b> команды. На живых данных публика систематически
-              перегружает тяжёлых фаворитов на 3–4 п.п. сверх честной вероятности.
-              Это измерение того, что раньше было качественным признаком «народная команда».
+              Знак — в сторону <b>первой</b> команды, порог показа — {PUBLIC_BIAS_THRESHOLD} п.п.,
+              как в правиле тезиса 2. На замере 35 матчей публика перегружает тяжёлых фаворитов в
+              среднем на <b>2.4–2.6 п.п.</b> сверх честной вероятности, и градиент по силе фаворита
+              монотонный. Это измерение того, что раньше было качественным признаком «народная
+              команда».
             </p>
           </CardBody>
         </Card>
@@ -265,8 +328,8 @@ export function Schedule() {
         {copied ? '✓ Скопировано' : 'Скопировать листинг для Claude (без кэфов)'}
       </Button>
       <p className="-mt-1 text-center text-[10px] leading-snug text-muted-foreground">
-        Цены в бриф не попадают намеренно: увидев их первой, модель подгонит под них
-        свою оценку, и найти ошибку рынка станет невозможно.
+        Цены в бриф не попадают намеренно: увидев их первой, модель подгонит под них свою оценку, и
+        найти ошибку рынка станет невозможно.
         {ageMin != null && <> · собрано {ageMin} мин назад</>}
       </p>
     </>
@@ -274,9 +337,11 @@ export function Schedule() {
 }
 
 /** Мелкая справка для отладки: сколько матчей у каждой команды. */
-export function teamsWithMultipleMatches(listing: ListingMatch[]): string[] {
+export function teamsWithMultipleMatches(listing: ListingMatch[]): string[]
+{
   const count = new Map<string, number>();
-  for (const m of listing) {
+  for (const m of listing)
+  {
     for (const t of [m.team1, m.team2]) count.set(t, (count.get(t) ?? 0) + 1);
   }
   return [...count.entries()].filter(([, n]) => n > 1).map(([t, n]) => `${t} ×${n}`);

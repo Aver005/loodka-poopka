@@ -15,7 +15,8 @@
  */
 
 // ── Типы ──────────────────────────────────────────────────────────────────────
-export interface ListingMatch {
+export interface ListingMatch
+{
   /** Стабильный ключ строки листинга — `data-id` матча на сайте. */
   id: string;
   team1: string;
@@ -68,7 +69,8 @@ export interface ListingMatch {
   liveBetting: boolean;
 }
 
-export interface Asymmetry {
+export interface Asymmetry
+{
   match: ListingMatch;
   /** Команда, которая выходит на матч уставшей. */
   tired: string;
@@ -87,7 +89,11 @@ export interface Asymmetry {
 }
 
 // ── Разбор листинга ───────────────────────────────────────────────────────────
-const stripTags = (s = ''): string => s.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+const stripTags = (s = ''): string =>
+  s
+    .replace(/<[^>]*>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 /**
  * Контейнеры, в которых сайт держит матчи.
@@ -109,9 +115,11 @@ export const LISTING_CONTAINERS = ['#current_matches_block', '#upcoming'] as con
  * создавать усталость сопернику. Возвращаем 0 — «уже начинается»: ставить туда нечего,
  * но как предыдущая игра команды он теперь учитывается.
  */
-export function parseCountdown(text: string): number | null {
+export function parseCountdown(text: string): number | null
+{
   const m = /(?:(\d+)\s*д\s*)?(\d{1,2}):(\d{2}):(\d{2})/.exec(text);
-  if (m) {
+  if (m)
+  {
     const [, d, hh, mm, ss] = m;
     return ((Number(d ?? 0) * 24 + Number(hh)) * 3600 + Number(mm) * 60 + Number(ss)) * 1000;
   }
@@ -125,7 +133,8 @@ export function parseCountdown(text: string): number | null {
  * впереди матча, до которого 40 минут. Именно от этого листинг выглядел
  * «не в том порядке».
  */
-export function byStart(a: ListingMatch, b: ListingMatch): number {
+export function byStart(a: ListingMatch, b: ListingMatch): number
+{
   if (a.startsInMs == null) return b.startsInMs == null ? 0 : 1;
   if (b.startsInMs == null) return -1;
   return a.startsInMs - b.startsInMs;
@@ -144,7 +153,8 @@ export const sortByStart = (matches: ListingMatch[]): ListingMatch[] => [...matc
  *
  * Свежие данные выигрывают (кэфы и таймеры двигаются), но полнота не теряется.
  */
-export function mergeListings(prev: ListingMatch[], next: ListingMatch[]): ListingMatch[] {
+export function mergeListings(prev: ListingMatch[], next: ListingMatch[]): ListingMatch[]
+{
   const byId = new Map(prev.map((m) => [m.id, m]));
   for (const m of next) byId.set(m.id, m);
   return sortByStart([...byId.values()]);
@@ -162,30 +172,36 @@ export function mergeListings(prev: ListingMatch[], next: ListingMatch[]): Listi
  * Ставить туда нечего — но см. задачу про чтение их счёта, оно нужно, чтобы
  * знать РЕАЛЬНУЮ длительность предыдущей серии команды.
  */
-export function parseListingHtml(html: string): ListingMatch[] {
+export function parseListingHtml(html: string): ListingMatch[]
+{
   const out: ListingMatch[] = [];
 
   // Режем по началу карточки матча: вложенных `.event` внутри не бывает.
-  for (const block of html.split(/<div class="event\s/).slice(1)) {
+  for (const block of html.split(/<div class="event\s/).slice(1))
+  {
     const cls = /^([^"]*)"/.exec(block)?.[1] ?? '';
     const id = /data-id="(\d+)"/.exec(block)?.[1];
     if (!id) continue;
 
     const sides: { raw: string; teamId: string | null; inner: string }[] = [];
     const sideRe = /<a[^>]*data-raw_id="(\d+)"[^>]*class="(left|right)[^"]*"[^>]*>([\s\S]*?)<\/a>/g;
-    for (let m: RegExpExecArray | null; (m = sideRe.exec(block)); ) {
+    for (let m: RegExpExecArray | null; (m = sideRe.exec(block));)
+    {
       sides.push({ raw: m[2]!, teamId: m[1] ?? null, inner: m[3] ?? '' });
     }
     const left = sides.find((s) => s.raw === 'left');
     const right = sides.find((s) => s.raw === 'right');
     if (!left || !right) continue;
 
-    const nameOf = (inner: string) => stripTags(/<span class="team_name">([\s\S]*?)<\/span>/.exec(inner)?.[1] ?? '');
-    const oddsOf = (inner: string) => {
+    const nameOf = (inner: string) =>
+      stripTags(/<span class="team_name">([\s\S]*?)<\/span>/.exec(inner)?.[1] ?? '');
+    const oddsOf = (inner: string) =>
+    {
       const v = /<span class="sum[^"]*">\s*([\d.]+)\s*<\/span>/.exec(inner)?.[1];
       return v ? parseFloat(v) : null;
     };
-    const pctOf = (inner: string) => {
+    const pctOf = (inner: string) =>
+    {
       const v = /<span class="percent_sum">\s*(\d+)/.exec(inner)?.[1];
       return v ? Number(v) : null;
     };
@@ -200,7 +216,8 @@ export function parseListingHtml(html: string): ListingMatch[] {
     const timerMs = parseCountdown(stripTags(timerTag));
     const running = /\bfull_width_event\b/.test(cls) && timerMs != null && timerMs > 0;
 
-    out.push({
+    out.push(
+    {
       id,
       team1: nameOf(left.inner),
       team2: nameOf(right.inner),
@@ -210,8 +227,10 @@ export function parseListingHtml(html: string): ListingMatch[] {
       odds2: oddsOf(right.inner),
       publicPct1: pctOf(left.inner),
       publicPct2: pctOf(right.inner),
-      tournament: stripTags(/<span class="event_name">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
-      format: stripTags(/<span class="event_type">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
+      tournament:
+        stripTags(/<span class="event_name">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
+      format:
+        stripTags(/<span class="event_type">([\s\S]*?)<\/span>/.exec(center)?.[1] ?? '') || null,
       startsInMs: running ? -timerMs! : timerMs,
       running,
       startsAt: /data-start="([^"]*)"/.exec(timerTag)?.[1] ?? null,
@@ -223,7 +242,8 @@ export function parseListingHtml(html: string): ListingMatch[] {
 }
 
 /** Типичная длительность серии. BO3 идёт 2–3.5 часа, берём середину. */
-const DURATION_MS: Record<string, number> = {
+const DURATION_MS: Record<string, number> =
+{
   BO1: 60 * 60_000,
   BO2: 2 * 60 * 60_000,
   BO3: 2.5 * 60 * 60_000,
@@ -251,30 +271,36 @@ export const upcomingOnly = (matches: ListingMatch[]): ListingMatch[] =>
   matches.filter((m) => !hasStarted(m));
 
 // ── Загрузка команд ───────────────────────────────────────────────────────────
-export interface TeamLoad {
+export interface TeamLoad
+{
   team: string;
   /** Матчи команды, отсортированные по времени старта. */
   matches: ListingMatch[];
 }
 
-export function teamLoads(matches: ListingMatch[]): Map<string, TeamLoad> {
+export function teamLoads(matches: ListingMatch[]): Map<string, TeamLoad>
+{
   const byTeam = new Map<string, TeamLoad>();
-  for (const m of matches) {
+  for (const m of matches)
+  {
     if (m.startsInMs == null) continue;
-    for (const team of [m.team1, m.team2]) {
+    for (const team of [m.team1, m.team2])
+    {
       const load = byTeam.get(team) ?? { team, matches: [] };
       load.matches.push(m);
       byTeam.set(team, load);
     }
   }
-  for (const load of byTeam.values()) {
+  for (const load of byTeam.values())
+  {
     load.matches.sort((a, b) => (a.startsInMs ?? 0) - (b.startsInMs ?? 0));
   }
   return byTeam;
 }
 
 /** Сколько матчей у команды строго до указанного момента, в пределах суток. */
-function priorCount(load: TeamLoad | undefined, beforeMs: number): number {
+function priorCount(load: TeamLoad | undefined, beforeMs: number): number
+{
   if (!load) return 0;
   return load.matches.filter(
     (m) => m.startsInMs != null && m.startsInMs < beforeMs && beforeMs - m.startsInMs < SAME_DAY_MS,
@@ -290,7 +316,8 @@ function priorCount(load: TeamLoad | undefined, beforeMs: number): number {
  * ([дырка 4](../../FATIGUE.md#4-отдых--это-прогноз-а-не-факт)): серия, идущая третий час,
  * даёт отдых по факту, а не по табличным 2 ч 30 м.
  */
-function restBefore(load: TeamLoad | undefined, beforeMs: number): number {
+function restBefore(load: TeamLoad | undefined, beforeMs: number): number
+{
   if (!load) return Infinity;
   const prior = load.matches.filter((m) => m.startsInMs != null && m.startsInMs < beforeMs);
   const last = prior.at(-1);
@@ -303,7 +330,8 @@ function restBefore(load: TeamLoad | undefined, beforeMs: number): number {
 const imp = (o: number | null): number | null => (o && o > 0 ? 1 / o : null);
 
 /** Очищенная от маржи вероятность первой команды. */
-export function fairP1(m: ListingMatch): number | null {
+export function fairP1(m: ListingMatch): number | null
+{
   const a = imp(m.odds1);
   const b = imp(m.odds2);
   if (a == null || b == null) return null;
@@ -320,17 +348,23 @@ export function fairP1(m: ListingMatch): number | null {
  * из 43 матчей оно доходит до 7.5 п.п., а в среднем составляет 1.85 п.п.
  *
  * В отклонениях виден систематический перекос: публика **перегружает тяжёлых
- * фаворитов** сверх их честной вероятности на 3–4 п.п. Это классическое смещение
+ * фаворитов** сверх их честной вероятности — на замере 35 матчей в среднем на 2.4–2.6 п.п.,
+ * с монотонным градиентом по силе фаворита. Это классическое смещение
  * «фаворит–аутсайдер», и оно превращает качественный признак «народная команда»
  * из моих фильтров в измеримую величину.
+ *
+ * ⚠️ Знак сам по себе решения не даёт: правило тезиса 2 требует перегрева **фаворита**,
+ * а публика может грузить и андердога. Тогда величина порог проходит, а условие нет.
  */
-export function publicBias(m: ListingMatch): number | null {
+export function publicBias(m: ListingMatch): number | null
+{
   const fair = fairP1(m);
   if (fair == null || m.publicPct1 == null) return null;
   return m.publicPct1 - fair * 100;
 }
 
-export interface AsymmetryOptions {
+export interface AsymmetryOptions
+{
   /** Разница в числе матчей, достаточная сама по себе даже если оба уже играли. */
   bigLoadGap?: number;
   /** Отдых, выше которого усталость перестаёт считаться существенной. */
@@ -348,15 +382,14 @@ export interface AsymmetryOptions {
  * Но там перемалывает всех, и лишняя игра не даёт сопернику свежести — она даёт
  * только рост дисперсии. Первая версия отмечала такое как перекос, и это было неверно.
  */
-export function findAsymmetries(
-  matches: ListingMatch[],
-  opts: AsymmetryOptions = {},
-): Asymmetry[] {
+export function findAsymmetries(matches: ListingMatch[], opts: AsymmetryOptions = {}): Asymmetry[]
+{
   const { bigLoadGap = 2, maxRestMs = 4 * 60 * 60_000 } = opts;
   const loads = teamLoads(matches);
   const out: Asymmetry[] = [];
 
-  for (const m of matches) {
+  for (const m of matches)
+  {
     // Начавшиеся матчи пропускаем: ставить туда нечего, а в подсчёт нагрузки
     // соперников они при этом входят — именно они и создают усталость.
     if (hasStarted(m)) continue;
@@ -389,14 +422,25 @@ export function findAsymmetries(
     const priceScore = tiredFairP == null ? 0.3 : Math.max(0, (tiredFairP - 0.5) * 2);
     const severity = Math.min(1, loadScore * 0.35 + restScore * 0.3 + priceScore * 0.35);
 
-    out.push({ match: m, tired, fresh, priorMatches, restMs: rest, tiredIsFavorite, tiredFairP, severity });
+    out.push(
+    {
+      match: m,
+      tired,
+      fresh,
+      priorMatches,
+      restMs: rest,
+      tiredIsFavorite,
+      tiredFairP,
+      severity,
+    });
   }
 
   return out.sort((a, b) => b.severity - a.severity);
 }
 
 // ── Вывод ─────────────────────────────────────────────────────────────────────
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number): string
+{
   if (!isFinite(ms)) return '—';
   const sign = ms < 0 ? '−' : '';
   // Округляем МИНУТЫ ЦЕЛИКОМ, а потом делим на часы.
@@ -416,7 +460,8 @@ export function formatDuration(ms: number): string {
  * невозможно по построению. Все оценки за первые два дня эксперимента ушли
  * с пометкой «с якорем» именно потому, что кэфы были видны на скриншотах.
  */
-export function buildListingBrief(matches: ListingMatch[]): string {
+export function buildListingBrief(matches: ListingMatch[]): string
+{
   const asym = findAsymmetries(matches);
   const L: string[] = [];
 
@@ -425,7 +470,8 @@ export function buildListingBrief(matches: ListingMatch[]): string {
 
   L.push('## Матчи', '');
   L.push('| Матч | Турнир | Формат | До старта |', '|---|---|:-:|:-:|');
-  for (const m of sortByStart(matches)) {
+  for (const m of sortByStart(matches))
+  {
     // Идущий матч обязан выглядеть идущим. Один раз он попал сюда как «через 2 ч 51 мин»
     // (знак таймера), я запросил по нему линию, и в брифе появился кандидат,
     // которого не существовало. Отрицательный отсчёт в этой колонке — тоже плохо:
@@ -437,13 +483,17 @@ export function buildListingBrief(matches: ListingMatch[]): string {
   }
   L.push('');
 
-  if (asym.length) {
+  if (asym.length)
+  {
     L.push('## ⚠️ Перекос расписания', '');
     L.push('Команды, выходящие на матч уставшими против более свежего соперника.', '');
     L.push('| Матч | Кто устал | Матчей позади | Отдых |', '|---|---|:-:|:-:|');
-    for (const a of asym) {
-      L.push(`| ${a.match.team1} vs ${a.match.team2} | **${a.tired}** | ${a.priorMatches} | ` +
-             `${formatDuration(a.restMs)} |`);
+    for (const a of asym)
+    {
+      L.push(
+        `| ${a.match.team1} vs ${a.match.team2} | **${a.tired}** | ${a.priorMatches} | ` +
+          `${formatDuration(a.restMs)} |`,
+      );
     }
     L.push('');
     L.push('> Симметричные случаи (круговые турниры, где все играют подряд) сюда не попадают:');
@@ -452,6 +502,3 @@ export function buildListingBrief(matches: ListingMatch[]): string {
 
   return L.join('\n');
 }
-
-
-
